@@ -6,7 +6,7 @@ import sys
 root = Path(__file__).resolve().parents[1]
 sources = list((root / "Source").rglob("*.cpp")) + list((root / "Source").rglob("*.h"))
 bad = []
-suspicious = ["\ufffd", "Ã", "Â", "â€", "â„", "\u2028", "\u2029"]
+suspicious = ["\ufffd", "Ã©", "Ã¨", "Ãª", "Ã ", "Ã§", "Â©", "â€", "â„", "\u2028", "\u2029"]
 for path in sources:
     raw = path.read_bytes()
     try:
