@@ -94,8 +94,9 @@ LoveEQAudioProcessorEditor::LoveEQAudioProcessorEditor(LoveEQAudioProcessor& p)
     };
     addAndMakeVisible(presetCombo);
     auto show=[this](juce::Component& c){addAndMakeVisible(c);};
-    for(auto* b:{&buttonA,&buttonB,&undoButton,&redoButton,&resetButton,&bypassButton,&preButton,&postButton,
-                 &tabParam,&tabDynamic,&tabGraphic,&holdButton,&freezeButton}) show(*b);
+    for(juce::TextButton* b : std::array<juce::TextButton*,13>{
+            &buttonA,&buttonB,&undoButton,&redoButton,&resetButton,&bypassButton,&preButton,&postButton,
+            &tabParam,&tabDynamic,&tabGraphic,&holdButton,&freezeButton}) show(*b);
     tabParam.onClick=[this]{selectTab(0);};
     tabDynamic.onClick=[this]{selectTab(1);};
     tabGraphic.setEnabled(true);
