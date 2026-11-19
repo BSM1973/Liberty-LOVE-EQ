@@ -30,6 +30,24 @@ for token in ("juce::TextButton tabParam", "juce::TextButton holdButton", "juce:
     if token not in header:
         bad.append(f"UI component missing: {token}")
 
+
+# The old source used literal backslash-u sequences, which are forbidden for UI copy.
+import re
+for path in sources:
+    body=path.read_text("utf-8")
+    if re.search(r"\\u[0-9a-fA-F]{4}", body):
+        bad.append(f"{path.relative_to(root)}: replace escaped accent with real UTF-8")
+browser=(root/"Source"/"PresetBrowser.h").read_text("utf-8")
+userLibrary=(root/"Source"/"UserPresetLibrary.h").read_text("utf-8")
+if not all(x in ui+browser for x in ("BIBLIOTHÈQUE","ÉCHELLE","FRÉQUENCE","CATÉGORIE","É"):
+    bad.append("Real accented UI strings missing")
+for required in ('"USER"','"SAUVER DANS USER"','"Catégorie utilisateur"'):
+    if required not in browser:
+        bad.append(f"USER browser control missing: {required}")
+for required in ("LOVE_EQ_USER_PRESET","getSpecialLocation","replaceWithText","load("):
+    if required not in userLibrary:
+        bad.append(f"User preset persistence missing: {required}")
+
 if bad:
     print("LOVE EQ UI text / layout checks FAILED:")
     for error in bad:

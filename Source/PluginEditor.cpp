@@ -32,7 +32,111 @@ LoveEQAudioProcessorEditor::Theme::Theme() {
     setColour(juce::ToggleButton::textColourId,text);
 }
 juce::Font LoveEQAudioProcessorEditor::Theme::getTextButtonFont(juce::TextButton&,int) {
-    return juce::Font(juce::FontOptions(11.2f));
+    return juce::Font(juce::FontOptions("Arial",11.2f,juce::Font::plain));
+}
+juce::Font LoveEQAudioProcessorEditor::Theme::getComboBoxFont(juce::ComboBox&) {
+    return juce::Font(juce::FontOptions("Arial",12.0f,juce::Font::plain));
+}
+juce::Font LoveEQAudioProcessorEditor::Theme::getPopupMenuFont() {
+    return juce::Font(juce::FontOptions("Arial",12.4f,juce::Font::plain));
+}
+void LoveEQAudioProcessorEditor::Theme::drawComboBox(juce::Graphics& g,int width,int height,
+      bool pressed,int,int,int,int,juce::ComboBox& box) {
+    const auto b=juce::Rectangle<float>(0.f,0.f,(float)width,(float)height).reduced(0.7f);
+    g.setGradientFill(juce::ColourGradient(juce::Colour(0xff28333e),0.f,0.f,
+                                            juce::Colour(0xff161f29),0.f,(float)height,false));
+    g.fillRoundedRectangle(b,7.f);
+    g.setColour(box.isPopupActive()||pressed?juce::Colour(0xffdfc18c):juce::Colour(0xff52616c));
+    g.drawRoundedRectangle(b,7.f,box.isPopupActive()?1.7f:1.f);
+    g.setColour(juce::Colour(0xff41515d));
+    g.drawVerticalLine(width-29,7.f,(float)height-7.f);
+    juce::Path chevron;
+    const float x=(float)width-15.f,y=(float)height*0.5f;
+    chevron.startNewSubPath(x-4.f,y-2.f);
+    chevron.lineTo(x,y+2.f);
+    chevron.lineTo(x+4.f,y-2.f);
+    g.setColour(juce::Colour(0xffd4bd90));
+    g.strokePath(chevron,juce::PathStrokeType(1.8f));
+}
+void LoveEQAudioProcessorEditor::Theme::drawPopupMenuBackground(juce::Graphics& g,int w,int h) {
+    g.setGradientFill(juce::ColourGradient(juce::Colour(0xff24313d),0.f,0.f,
+                                            juce::Colour(0xff131c25),0.f,(float)h,false));
+    g.fillAll();
+    g.setColour(juce::Colour(0xff586775));
+    g.drawRect(juce::Rectangle<int>{0,0,w,h},1);
+}
+void LoveEQAudioProcessorEditor::Theme::drawPopupMenuItem(juce::Graphics& g,
+      const juce::Rectangle<int>& area,bool separator,bool active,bool highlighted,bool ticked,
+      bool submenu,const juce::String& label,const juce::String& shortcut,
+      const juce::Drawable*,const juce::Colour* customColour) {
+    if(separator) {
+        g.setColour(juce::Colour(0xff3c4b58));
+        g.drawHorizontalLine(area.getCentreY(),(float)area.getX()+10.f,(float)area.getRight()-10.f);
+        return;
+    }
+    const auto bounds=area.reduced(4,2).toFloat();
+    if(highlighted && active) {
+        g.setColour(juce::Colour(0xff44596b));
+        g.fillRoundedRectangle(bounds,5.f);
+        g.setColour(juce::Colour(0xffb99b69));
+        g.fillRoundedRectangle(bounds.getX(),bounds.getY(),2.8f,bounds.getHeight(),1.f);
+    }
+    const auto fg=!active?juce::Colour(0xff6f7f89):
+                 customColour?*customColour:juce::Colour(0xffe0e5e6);
+    g.setColour(fg);
+    g.setFont(getPopupMenuFont());
+    g.drawFittedText(label,area.reduced(30,2).withTrimmedRight(submenu?10:0),
+                     juce::Justification::centredLeft,1,0.92f);
+    if(shortcut.isNotEmpty()) {
+        g.setColour(juce::Colour(0xff91a3ae));
+        g.drawText(shortcut,area.withLeft(area.getRight()-72),juce::Justification::centredRight);
+    }
+    if(ticked) {
+        g.setColour(juce::Colour(0xffe6c48e));
+        juce::Path check;
+        const float x=(float)area.getX()+15.f,y=(float)area.getCentreY();
+        check.startNewSubPath(x-4.f,y);
+        check.lineTo(x-1.f,y+3.f);
+        check.lineTo(x+5.f,y-4.f);
+        g.strokePath(check,juce::PathStrokeType(2.0f));
+    }
+    if(submenu) {
+        const float x=(float)area.getRight()-13.f,y=(float)area.getCentreY();
+        juce::Path arrow;
+        arrow.startNewSubPath(x-3.f,y-4.f);
+        arrow.lineTo(x+1.f,y);
+        arrow.lineTo(x-3.f,y+4.f);
+        g.setColour(fg);
+        g.strokePath(arrow,juce::PathStrokeType(1.6f));
+    }
+}
+void LoveEQAudioProcessorEditor::Theme::getIdealPopupMenuItemSize(
+      const juce::String& name,bool separator,int standardHeight,int& width,int& height) {
+    if(separator){height=9; width=juce::jmax(width,100);return;}
+    height=juce::jmax(32,standardHeight);
+    width=juce::jmax(width,juce::jmin(390,juce::roundToInt(getPopupMenuFont().getStringWidthFloat(name))+63));
+}
+void LoveEQAudioProcessorEditor::Theme::drawButtonBackground(juce::Graphics& g,
+      juce::Button& button,const juce::Colour&,bool highlighted,bool down) {
+    const bool selected=button.getToggleState();
+    const auto b=button.getLocalBounds().toFloat().reduced(0.7f);
+    const auto hi=selected?juce::Colour(0xff57503e):
+                 (down?juce::Colour(0xff3e4c59):
+                  highlighted?juce::Colour(0xff354450):juce::Colour(0xff26313c));
+    const auto lo=selected?juce::Colour(0xff363226):juce::Colour(0xff18212b);
+    g.setGradientFill(juce::ColourGradient(hi,0.f,0.f,lo,0.f,(float)button.getHeight(),false));
+    g.fillRoundedRectangle(b,6.f);
+    g.setColour(selected?juce::Colour(0xffd9b97e):juce::Colour(0xff52616c));
+    g.drawRoundedRectangle(b,6.f,selected?1.5f:1.f);
+}
+void LoveEQAudioProcessorEditor::Theme::drawToggleButton(juce::Graphics& g,
+      juce::ToggleButton& button,bool highlighted,bool down) {
+    drawButtonBackground(g,button,juce::Colour(0xff25303a),highlighted,down);
+    const auto b=button.getLocalBounds();
+    const auto chosen=button.getToggleState();
+    g.setColour(chosen?juce::Colour(0xffe8ce9f):juce::Colour(0xffd4dde0));
+    g.setFont(juce::Font(juce::FontOptions("Arial",11.3f,juce::Font::bold)));
+    g.drawFittedText(button.getButtonText(),b.reduced(7,3),juce::Justification::centred,1,0.90f);
 }
 void LoveEQAudioProcessorEditor::HistoryButton::paintButton(juce::Graphics& g,bool highlighted,bool down) {
     auto bounds=getLocalBounds().toFloat().reduced(1.f);
@@ -58,7 +162,7 @@ LoveEQAudioProcessorEditor::LoveEQAudioProcessorEditor(LoveEQAudioProcessor& p)
  : AudioProcessorEditor(&p),processor(p) {
     setLookAndFeel(&theme);
     english=processor.getUiLanguage()=="en";
-    languageBox.addItem("FRAN\u00c7AIS",1);
+    languageBox.addItem(u8"FRANÇAIS",1);
     languageBox.addItem("ENGLISH",2);
     languageBox.setSelectedId(english?2:1,juce::dontSendNotification);
     languageBox.onChange=[this]{
@@ -76,7 +180,7 @@ LoveEQAudioProcessorEditor::LoveEQAudioProcessorEditor(LoveEQAudioProcessor& p)
     for(int i=0;i<8;++i) {
         auto& b=bandButtons[(size_t)i];
         b.setButtonText("");
-        b.setTooltip("S\u00E9lectionner la bande " + juce::String(i+1));
+        b.setTooltip(u8"Sélectionner la bande " + juce::String(i+1));
         b.setColour(juce::TextButton::buttonColourId, juce::Colours::transparentBlack);
         b.setColour(juce::TextButton::buttonOnColourId, juce::Colours::transparentBlack);
         b.setColour(juce::TextButton::textColourOffId,juce::Colour(bandColours[(size_t)i]));
@@ -101,7 +205,7 @@ LoveEQAudioProcessorEditor::LoveEQAudioProcessorEditor(LoveEQAudioProcessor& p)
     tabDynamic.onClick=[this]{selectTab(1);};
     tabGraphic.setEnabled(true);
     tabGraphic.onClick=[this]{selectTab(2);};
-    tabGraphic.setTooltip("16 bandes graphiques r\u00e9ellement trait\u00e9es dans le moteur audio");
+    tabGraphic.setTooltip(u8"16 bandes graphiques réellement traitées dans le moteur audio");
     holdButton.setClickingTogglesState(true);
     holdButton.onClick=[this]{holdSpectrum=holdButton.getToggleState();
         if(!holdSpectrum){heldPre.fill(-96.f);heldPost.fill(-96.f);}
@@ -163,8 +267,8 @@ LoveEQAudioProcessorEditor::LoveEQAudioProcessorEditor(LoveEQAudioProcessor& p)
     presetBrowser->onLoad=[this](int index){
         presetSearch.clear();
         refillPresets();
-        presetCombo.setSelectedId(index+1,juce::dontSendNotification);
-        selectTab(0);
+        presetCombo.setSelectedId(index>=0?index+1:0,juce::dontSendNotification);
+        selectTab(processor.parameters.getRawParameterValue("eq_mode")->load()>0.5f?2:0);
     };
     presetBrowser->translate(english);
     updateLanguageSafeTexts();
@@ -192,11 +296,11 @@ void LoveEQAudioProcessorEditor::updateGraphicVisibility() {
         component->setVisible(!graphic);
 }
 void LoveEQAudioProcessorEditor::updateLanguageSafeTexts() {
-    tabParam.setButtonText(tr("PARAM\u00c9TRIQUE","PARAMETRIC"));
+    tabParam.setButtonText(tr(u8"PARAMÉTRIQUE","PARAMETRIC"));
     tabDynamic.setButtonText(tr("DYNAMIQUE","DYNAMIC"));
     tabGraphic.setButtonText(tr("GRAPHIQUE","GRAPHIC"));
     browserButton.setButtonText("PRESETS");
-    browserButton.setTooltip(tr("Ouvrir la biblioth\u00e8que des 100 presets","Open the 100-preset browser"));
+    browserButton.setTooltip(tr(u8"Ouvrir la bibliothèque des 100 presets","Open the 100-preset browser"));
     resetButton.setButtonText("RESET / FLAT");
     holdButton.setButtonText(tr("MAINTIEN PIC","PEAK HOLD"));
     freezeButton.setButtonText(tr("FIGER","FREEZE"));
@@ -214,9 +318,9 @@ void LoveEQAudioProcessorEditor::updateLanguageSafeTexts() {
     typeBox.setSelectedId(currentType,juce::dontSendNotification);
     presetSearch.setTextToShowWhenEmpty(tr("Rechercher 100 presets...","Search 100 presets..."),juce::Colours::grey);
     undoButton.setTooltip(tr("Annuler","Undo"));
-    redoButton.setTooltip(tr("R\u00e9tablir","Redo"));
-    resetButton.setTooltip(tr("Remettre les param\u00e8tres \u00e0 plat","Reset all EQ parameters"));
-    peakResetButton.setTooltip(tr("Effacer les cr\u00eates IN/OUT","Reset input and output peak hold"));
+    redoButton.setTooltip(tr(u8"Rétablir","Redo"));
+    resetButton.setTooltip(tr(u8"Remettre les paramètres à plat","Reset all EQ parameters"));
+    peakResetButton.setTooltip(tr(u8"Effacer les crêtes IN/OUT","Reset input and output peak hold"));
     repaint();
 }
 void LoveEQAudioProcessorEditor::setParam(const juce::String& id,float v) {
@@ -334,11 +438,11 @@ void LoveEQAudioProcessorEditor::paint(juce::Graphics& g) {
     g.setFont(juce::Font(juce::FontOptions(29.f,juce::Font::bold)));
     g.drawText("LOVE EQ",76,16,252,36,juce::Justification::centredLeft);
     g.setColour(juce::Colour(0xff96a1a9));
-    g.setFont(juce::Font(juce::FontOptions(11.5f)));
+    g.setFont(juce::Font(juce::FontOptions("Arial",11.5f,juce::Font::plain)));
     g.drawText("by Liberty Music Software",77,51,250,19,juce::Justification::centredLeft);
     g.setColour(juce::Colour(0xff7e8b98));
-    g.setFont(juce::Font(juce::FontOptions(9.8f,juce::Font::bold)));
-    g.drawText(tr("BIBLIOTH\u00c8QUE DE PRESETS","PRESET LIBRARY"),350,18,265,15,juce::Justification::centredLeft);
+    g.setFont(juce::Font(juce::FontOptions("Arial",9.8f,juce::Font::bold)));
+    g.drawText(tr(u8"BIBLIOTHÈQUE DE PRESETS","PRESET LIBRARY"),350,18,265,15,juce::Justification::centredLeft);
     g.setColour(trim);
     g.drawHorizontalLine(83,23.f,(float)w-23.f);
 
@@ -353,8 +457,8 @@ void LoveEQAudioProcessorEditor::paint(juce::Graphics& g) {
     g.drawText("ZERO LATENCY / 0",w-273,100,150,19,juce::Justification::centredLeft);
     g.setColour(juce::Colour(0xff84939d));
 
-    g.drawText(tr("COURBE : ST\u00c9R\u00c9O","CURVE: STEREO"),378,99,175,26,juce::Justification::centredLeft);
-    g.drawText(tr("\u00c9CHELLE : +/- 18 dB","SCALE: +/- 18 dB"),563,99,195,26,juce::Justification::centredLeft);
+    g.drawText(tr(u8"COURBE : STÉRÉO","CURVE: STEREO"),378,99,175,26,juce::Justification::centredLeft);
+    g.drawText(tr(u8"ÉCHELLE : +/- 18 dB","SCALE: +/- 18 dB"),563,99,195,26,juce::Justification::centredLeft);
 
     // Single analyzer panel with a dedicated toolbar and a narrow meter strip.
     g.setColour(juce::Colour(0xff10171d));
@@ -365,7 +469,7 @@ void LoveEQAudioProcessorEditor::paint(juce::Graphics& g) {
     g.setColour(juce::Colour(0xff778994));
     g.setFont(juce::Font(juce::FontOptions(10.f,juce::Font::bold)));
     g.drawText(tr("SPECTRE","SPECTRUM"),42,156,73,18,juce::Justification::centredLeft);
-    g.drawText(tr("R\u00c9PONSE - dB","RESPONSE - dB"),graph.getX(),190,154,16,juce::Justification::centredLeft);
+    g.drawText(tr(u8"RÉPONSE - dB","RESPONSE - dB"),graph.getX(),190,154,16,juce::Justification::centredLeft);
     g.drawText(tr("ANALYSEUR FFT 2048","FFT ANALYZER 2048"),graph.getRight()-196,190,189,16,juce::Justification::centredRight);
 
     // Logarithmic grid and true biquad response.
@@ -441,7 +545,7 @@ void LoveEQAudioProcessorEditor::paint(juce::Graphics& g) {
     g.fillRoundedRectangle((float)graph.getX()+57.f,spectrumPanel.getBottom()-20.f,10.f,3.f,1.f);
     g.setColour(juce::Colour(0xff8c9ba7));
     g.drawText("POST",graph.getX()+72,spectrumPanel.getBottom()-26,52,18,juce::Justification::centredLeft);
-    g.drawText(tr("GLISSER UN POINT : FR\u00c9QUENCE / GAIN","DRAG NODE: FREQUENCY / GAIN"),graph.getRight()-280,spectrumPanel.getBottom()-26,278,18,juce::Justification::centredRight);
+    g.drawText(tr(u8"GLISSER UN POINT : FRÉQUENCE / GAIN","DRAG NODE: FREQUENCY / GAIN"),graph.getRight()-280,spectrumPanel.getBottom()-26,278,18,juce::Justification::centredRight);
 
     // Two real peak meters (mono peak per bus; no fake L/R subdivisions).
     g.setColour(juce::Colour(0xff182229));
@@ -514,7 +618,7 @@ void LoveEQAudioProcessorEditor::paint(juce::Graphics& g) {
         const auto* gainV=processor.parameters.getRawParameterValue(id("gain"));
         const float f=hz?hz->load():1000.f, val=gainV?gainV->load():0.f;
         const juce::String hzLabel=f>=1000.f?juce::String(f/1000.f,2)+" kHz":juce::String((int)std::round(f))+" Hz";
-        g.setFont(juce::Font(juce::FontOptions(12.6f)));
+        g.setFont(juce::Font(juce::FontOptions("Arial",12.6f,juce::Font::plain)));
         g.drawText(hzLabel,b.getX()+10,b.getY()+35,b.getWidth()-20,20,juce::Justification::centredLeft);
         g.setColour(colour);
         g.setFont(juce::Font(juce::FontOptions(10.f,juce::Font::bold)));
@@ -544,10 +648,10 @@ void LoveEQAudioProcessorEditor::paint(juce::Graphics& g) {
         g.drawText(tr("GRAPHIQUE - 16 BANDES","GRAPHIC - 16 BANDS"),43,bottomPanel.getY()+12,470,28,juce::Justification::centredLeft);
         g.setColour(juce::Colour(0xffa7b7c0));
         g.setFont(juce::Font(juce::FontOptions(12.f)));
-        g.drawText(tr("16 filtres bell r\u00e9els avec gain ind\u00e9pendant de -18 \u00e0 +18 dB",
+        g.drawText(tr(u8"16 filtres bell réels avec gain indépendant de -18 à +18 dB",
                       "16 real bell filters with independent gain from -18 to +18 dB"),
                       43,bottomPanel.getY()+47,bottomPanel.getWidth()-60,25,juce::Justification::centredLeft);
-        g.drawText(tr("D\u00e9placez les curseurs au-dessus ou les points du graphe.",
+        g.drawText(tr(u8"Déplacez les curseurs au-dessus ou les points du graphe.",
                       "Move the sliders above or drag the graph nodes."),
                       43,bottomPanel.getY()+78,bottomPanel.getWidth()-60,22,juce::Justification::centredLeft);
     } else {
@@ -565,7 +669,7 @@ void LoveEQAudioProcessorEditor::paint(juce::Graphics& g) {
     g.setColour(juce::Colour(0xff8496a0));
     g.setFont(juce::Font(juce::FontOptions(9.f)));
     const std::array<juce::String,6> labels {
-        tr("FILTRE","FILTER"),tr("FR\u00c9QUENCE","FREQUENCY"),
+        tr("FILTRE","FILTER"),tr(u8"FRÉQUENCE","FREQUENCY"),
         "GAIN",tr("Q / LARGEUR","Q / WIDTH"),tr("CANAL","CHANNEL"),tr("PENTE","SLOPE")
     };
     const int x0=controls.getX()+10;
@@ -574,20 +678,20 @@ void LoveEQAudioProcessorEditor::paint(juce::Graphics& g) {
         g.drawText(labels[(size_t)i],x0+xx[(size_t)i],bottomPanel.getY()+39,
                    (i==0?84:82),17,juce::Justification::centredLeft);
     const std::array<juce::String,4> dynamics {
-        tr("SEUIL","THRESHOLD"),tr("PLAGE","RANGE"),tr("ATTAQUE","ATTACK"),tr("REL\u00c2CHE","RELEASE")
+        tr("SEUIL","THRESHOLD"),tr("PLAGE","RANGE"),tr("ATTAQUE","ATTACK"),tr(u8"RELÂCHE","RELEASE")
     };
     for(int i=0;i<4;++i)
         g.drawText(dynamics[(size_t)i],split1+12+i*67,bottomPanel.getY()+39,64,17,juce::Justification::centredLeft);
     g.drawText(tr("Correspondance spectrale","Spectrum matching"),split2+12,bottomPanel.getY()+48,202,18,juce::Justification::centredLeft);
-    g.drawText(tr("EN COURS DE D\u00c9VELOPPEMENT","IN DEVELOPMENT"),split2+12,bottomPanel.getY()+72,220,17,juce::Justification::centredLeft);
-    g.drawText(activeTab==1?tr("R\u00c9GLAGES DYNAMIQUES","DYNAMIC CONTROLS"):tr("R\u00c9GLAGES PARAM\u00c9TRIQUES","PARAMETRIC CONTROLS"),bottomPanel.getX()+10,bottomPanel.getBottom()-22,315,15,juce::Justification::centredLeft);
+    g.drawText(tr(u8"EN COURS DE DÉVELOPPEMENT","IN DEVELOPMENT"),split2+12,bottomPanel.getY()+72,220,17,juce::Justification::centredLeft);
+    g.drawText(activeTab==1?tr(u8"RÉGLAGES DYNAMIQUES","DYNAMIC CONTROLS"):tr(u8"RÉGLAGES PARAMÉTRIQUES","PARAMETRIC CONTROLS"),bottomPanel.getX()+10,bottomPanel.getBottom()-22,315,15,juce::Justification::centredLeft);
 
     }
     g.setColour(juce::Colour(0xffaebbc3));
     g.setFont(juce::Font(juce::FontOptions(10.f)));
-    g.drawText(tr("ENTR\u00c9E","INPUT"),footerPanel.getX()+3,footerPanel.getY()+10,53,15,juce::Justification::centredLeft);
+    g.drawText(tr(u8"ENTRÉE","INPUT"),footerPanel.getX()+3,footerPanel.getY()+10,53,15,juce::Justification::centredLeft);
     g.drawText(tr("SORTIE","OUTPUT"),footerPanel.getX()+214,footerPanel.getY()+10,53,15,juce::Justification::centredLeft);
-    g.drawText(tr("LOVE EQ - PR\u00caT POUR LE MIXAGE","LOVE EQ - READY FOR MIXING"),footerPanel.getX()+470,footerPanel.getY()+10,335,16,juce::Justification::centredLeft);
+    g.drawText(tr(u8"LOVE EQ - PRÊT POUR LE MIXAGE","LOVE EQ - READY FOR MIXING"),footerPanel.getX()+470,footerPanel.getY()+10,335,16,juce::Justification::centredLeft);
     g.drawText("by Liberty Music Software",footerPanel.getRight()-198,footerPanel.getY()+10,194,15,juce::Justification::centredRight);
 }
 void LoveEQAudioProcessorEditor::resized() {

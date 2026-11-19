@@ -19,6 +19,16 @@ private:
     public:
         Theme();
         juce::Font getTextButtonFont(juce::TextButton&,int buttonHeight) override;
+        juce::Font getComboBoxFont(juce::ComboBox&) override;
+        juce::Font getPopupMenuFont() override;
+        void drawComboBox(juce::Graphics&,int,int,bool,int,int,int,int,juce::ComboBox&) override;
+        void drawPopupMenuBackground(juce::Graphics&,int,int) override;
+        void drawPopupMenuItem(juce::Graphics&,const juce::Rectangle<int>&,bool,bool,bool,bool,
+                               bool,const juce::String&,const juce::String&,const juce::Drawable*,
+                               const juce::Colour*) override;
+        void drawButtonBackground(juce::Graphics&,juce::Button&,const juce::Colour&,bool,bool) override;
+        void drawToggleButton(juce::Graphics&,juce::ToggleButton&,bool,bool) override;
+        void getIdealPopupMenuItemSize(const juce::String&,bool,int,int&,int&) override;
     } theme;
     class HistoryButton final : public juce::TextButton {
     public:
@@ -29,7 +39,7 @@ private:
     };
     LoveEQAudioProcessor& processor;
     std::array<juce::TextButton,8> bandButtons;
-    juce::TextButton tabParam {"PARAM\u00C9TRIQUE"}, tabDynamic {"DYNAMIQUE"}, tabGraphic {"GRAPHIQUE"};
+    juce::TextButton tabParam {u8"PARAMÉTRIQUE"}, tabDynamic {"DYNAMIQUE"}, tabGraphic {"GRAPHIQUE"};
     juce::TextButton holdButton {"MAINTIEN PIC"}, freezeButton {"FIGER"};
     juce::TextEditor presetSearch;
     juce::ComboBox languageBox;

@@ -26,6 +26,7 @@ target_sources(LoveEQ PRIVATE
     Source/EqCore.h
     Source/FactoryPresets.h
     Source/PresetBrowser.h
+    Source/UserPresetLibrary.h
     Source/PluginProcessor.h
     Source/PluginProcessor.cpp
     Source/PluginEditor.h
@@ -54,3 +55,7 @@ add_executable(loveeq_graphic_test tests/graphic_test.cpp)
 target_include_directories(loveeq_graphic_test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/Source)
 target_compile_features(loveeq_graphic_test PRIVATE cxx_std_17)
 add_test(NAME loveeq_graphic COMMAND loveeq_graphic_test)
+
+add_executable(loveeq_utf8_test tests/utf8_test.cpp)
+target_compile_features(loveeq_utf8_test PRIVATE cxx_std_17)
+add_test(NAME loveeq_utf8 COMMAND loveeq_utf8_test)
