@@ -1,0 +1,1 @@
+Two dependency-free C++17 smoke tests validate the filter math and count/ranges/unique naming for the 100 factory presets. They are not substitutes for pluginval, audio A/B listening, latency measurements, or a host test matrix.

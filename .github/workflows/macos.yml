@@ -1,0 +1,34 @@
+name: Build LOVE EQ (macOS)
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  macos-arm64:
+    runs-on: macos-15
+    timeout-minutes: 55
+    steps:
+      - uses: actions/checkout@v4
+      - name: Configure (Apple Silicon)
+        run: cmake -S . -B build -G Xcode -DCMAKE_OSX_ARCHITECTURES=arm64 -DCMAKE_BUILD_TYPE=Release
+      - name: Build AU VST3 Standalone
+        run: cmake --build build --config Release --target LoveEQ_All --parallel 3
+      - name: Test EQ core and factory presets
+        run: |
+          cmake --build build --config Release --target loveeq_core_test loveeq_presets_test
+          ctest --test-dir build -C Release --output-on-failure
+      - name: Package signed-off-free test builds
+        run: |
+          mkdir -p deliverables
+          find build/LoveEQ_artefacts -type d \( -name '*.component' -o -name '*.vst3' -o -name '*.app' \) -prune -exec cp -R {} deliverables/ \;
+          test -n "$(ls -A deliverables)"
+          ditto -c -k --keepParent deliverables LOVE-EQ-macOS-arm64-unsigned.zip
+      - name: Downloadable GitHub artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: LOVE-EQ-macOS-arm64-AU-VST3-Standalone-unsigned
+          path: LOVE-EQ-macOS-arm64-unsigned.zip
+          if-no-files-found: error
+          retention-days: 30
