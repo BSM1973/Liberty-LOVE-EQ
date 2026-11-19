@@ -12,6 +12,8 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
+      - name: Check UI strings and layout contract
+        run: python3 tests/validate_ui_text.py
       - name: Compile independent DSP tests
         shell: bash
         run: |

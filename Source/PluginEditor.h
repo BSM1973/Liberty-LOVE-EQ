@@ -20,9 +20,11 @@ private:
     } theme;
     LoveEQAudioProcessor& processor;
     std::array<juce::TextButton,8> bandButtons;
+    juce::TextButton tabParam {"PARAM\u00C9TRIQUE"}, tabDynamic {"DYNAMIQUE"}, tabGraphic {"GRAPHIQUE"};
+    juce::TextButton holdButton {"MAINTIEN PIC"}, freezeButton {"FIGER"};
     juce::TextEditor presetSearch;
     juce::ComboBox presetCombo, typeBox, channelBox, slopeBox;
-    juce::TextButton buttonA {"A"}, buttonB {"B"}, undoButton {"ANNULER"}, redoButton {"RÉTABLIR"},
+    juce::TextButton buttonA {"A"}, buttonB {"B"}, undoButton {"ANNULER"}, redoButton {"REFAIRE"},
                      resetButton {"RESET / FLAT"}, bypassButton {"BYPASS"},
                      preButton {"PRE"}, postButton {"POST"};
     juce::ToggleButton enabledButton {"ACTIF"}, soloButton {"SOLO"}, dynamicButton {"DYNAMIQUE"};
@@ -32,9 +34,14 @@ private:
     std::unique_ptr<ComboAttachment> typeAttach, channelAttach, slopeAttach;
     std::unique_ptr<ButtonAttachment> enabledAttach, soloAttach, dynamicAttach, bypassAttach;
     juce::ValueTree stateA, stateB;
-    bool onB=false, showPre=true, showPost=true;
+    bool onB=false, showPre=true, showPost=true, freezeSpectrum=false, holdSpectrum=false;
+    int activeTab=0;
+    std::array<float,1025> heldPre {}, heldPost {};
+    void selectTab(int tab);
+    void updateLanguageSafeTexts();
     int selectedBand=0, draggingBand=-1;
     juce::Rectangle<int> graph, meterBox, bandRow, controls;
+    juce::Rectangle<int> spectrumPanel, bottomPanel, footerPanel;
     juce::dsp::FFT fft {11};
     std::array<float,4096> fftScratch{};
     std::array<float,1025> preSpectrum{}, postSpectrum{};
