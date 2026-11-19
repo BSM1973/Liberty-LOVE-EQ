@@ -6,26 +6,54 @@ on:
   workflow_dispatch:
 
 jobs:
+  dsp-tests:
+    name: DSP and 100 preset checks (Linux)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Compile independent DSP tests
+        shell: bash
+        run: |
+          mkdir -p build-core
+          c++ -std=c++17 -O2 -Wall -Wextra -Werror -pedantic -I Source tests/eqcore_test.cpp -o build-core/eqcore_test
+          c++ -std=c++17 -O2 -Wall -Wextra -Werror -pedantic -I Source tests/presets_test.cpp -o build-core/presets_test
+      - name: Test DSP and all factory presets
+        shell: bash
+        run: |
+          ./build-core/eqcore_test
+          ./build-core/presets_test
+
   macos-arm64:
-    runs-on: macos-15
+    name: AU / VST3 / Standalone - Apple Silicon
+    # Compile for arm64 on a separate Intel macOS runner pool.
+    # macos-15 was cancelled before checkout in two runs (no steps/logs).
+    runs-on: macos-15-intel
     timeout-minutes: 55
     steps:
       - uses: actions/checkout@v4
-      - name: Configure (Apple Silicon)
-        run: cmake -S . -B build -G Xcode -DCMAKE_OSX_ARCHITECTURES=arm64 -DCMAKE_BUILD_TYPE=Release
+      - name: Print macOS runner and Xcode diagnostics
+        run: |
+          uname -m
+          sw_vers
+          xcodebuild -version
+          cmake --version
+      - name: Configure for Apple Silicon
+        run: cmake -S . -B build -G Xcode -DCMAKE_OSX_ARCHITECTURES=arm64 -DCMAKE_OSX_DEPLOYMENT_TARGET=12.0 -DCMAKE_BUILD_TYPE=Release
       - name: Build AU VST3 Standalone
         run: cmake --build build --config Release --target LoveEQ_All --parallel 3
       - name: Test EQ core and factory presets
         run: |
           cmake --build build --config Release --target loveeq_core_test loveeq_presets_test
           ctest --test-dir build -C Release --output-on-failure
-      - name: Package signed-off-free test builds
+      - name: Package unsigned test builds
+        shell: bash
         run: |
           mkdir -p deliverables
           find build/LoveEQ_artefacts -type d \( -name '*.component' -o -name '*.vst3' -o -name '*.app' \) -prune -exec cp -R {} deliverables/ \;
           test -n "$(ls -A deliverables)"
           ditto -c -k --keepParent deliverables LOVE-EQ-macOS-arm64-unsigned.zip
-      - name: Downloadable GitHub artifact
+      - name: Publish downloadable GitHub artifact
         uses: actions/upload-artifact@v4
         with:
           name: LOVE-EQ-macOS-arm64-AU-VST3-Standalone-unsigned
