@@ -185,8 +185,9 @@ void LoveEQAudioProcessorEditor::updateGraphicVisibility() {
     const bool graphic=activeTab==2;
     for(auto& button:bandButtons)button.setVisible(!graphic);
     for(auto& slider:graphicSliders)slider.setVisible(graphic);
-    for(juce::Component* component:{(juce::Component*)&frequency,&gain,&q,&threshold,&range,&attack,&release,
-                          &typeBox,&channelBox,&slopeBox,&enabledButton,&soloButton,&dynamicButton})
+    for(juce::Component* component : std::array<juce::Component*,13>{
+            &frequency,&gain,&q,&threshold,&range,&attack,&release,
+            &typeBox,&channelBox,&slopeBox,&enabledButton,&soloButton,&dynamicButton})
         component->setVisible(!graphic);
 }
 void LoveEQAudioProcessorEditor::updateLanguageSafeTexts() {
@@ -507,8 +508,6 @@ void LoveEQAudioProcessorEditor::paint(juce::Graphics& g) {
         g.setFont(juce::Font(juce::FontOptions(10.f,juce::Font::bold)));
         g.drawText(juce::String(val,1),b.getX()+7,b.getBottom()-22,b.getWidth()-16,16,juce::Justification::centredRight);
         g.fillEllipse((float)b.getX()+b.getWidth()*0.48f,b.getBottom()-16.f,5.f,5.f);
-    }
-
     }
 
     // Bottom edit strip: filter, dynamic band, and deliberately honest EQ Match status.
