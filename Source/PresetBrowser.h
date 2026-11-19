@@ -9,7 +9,8 @@
 // Embedded professional browser: no modal OS windows, no icon-font dependency.
 class LoveEQPresetBrowser final : public juce::Component, private juce::ListBoxModel {
 public:
-    explicit LoveEQPresetBrowser(LoveEQAudioProcessor& p) : processor(p), results("Factory Presets",this) {
+    explicit LoveEQPresetBrowser(LoveEQAudioProcessor& p) : processor(p), results("Factory Presets",nullptr) {
+        results.setModel(this);
         setOpaque(true);
         search.setTextToShowWhenEmpty("Rechercher un preset ou un tag...",juce::Colours::grey);
         search.onTextChange=[this]{filter();};
@@ -42,6 +43,7 @@ public:
         filter();
         setVisible(false);
     }
+    ~LoveEQPresetBrowser() override {results.setModel(nullptr);}
     std::function<void(int)> onLoad;
     std::function<void()> onClose;
     void translate(bool english) {
@@ -105,7 +107,7 @@ public:
         if(selectedPreset>=0) {
             const auto& info=loveeq::factoryPresets()[(size_t)selectedPreset];
             g.setColour(juce::Colour(0xffe5d6b5));
-            g.drawText(juce::String(info.name),25,getHeight()-83,getWidth()-356,25,juce::Justification::centredLeft);
+            g.drawText(juce::String(info.name),25,getHeight()-85,getWidth()-356,22,juce::Justification::centredLeft);
             g.setColour(juce::Colour(0xff93a5af));
             g.setFont(juce::Font(juce::FontOptions(11.f)));
             g.drawText(categoryLabel(info.category)+"   /   "+makeTags(selectedPreset),25,getHeight()-59,getWidth()-356,18,juce::Justification::centredLeft);
