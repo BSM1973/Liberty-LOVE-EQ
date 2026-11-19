@@ -39,7 +39,7 @@ for path in sources:
         bad.append(f"{path.relative_to(root)}: replace escaped accent with real UTF-8")
 browser=(root/"Source"/"PresetBrowser.h").read_text("utf-8")
 userLibrary=(root/"Source"/"UserPresetLibrary.h").read_text("utf-8")
-if not all(x in ui+browser for x in ("BIBLIOTHÈQUE","ÉCHELLE","FRÉQUENCE","CATÉGORIE","É"):
+if not all(x in ui+browser for x in ("BIBLIOTHÈQUE","ÉCHELLE","FRÉQUENCE","CATÉGORIE","É")):
     bad.append("Real accented UI strings missing")
 for required in ('"USER"','"SAUVER DANS USER"','"Catégorie utilisateur"'):
     if required not in browser:
