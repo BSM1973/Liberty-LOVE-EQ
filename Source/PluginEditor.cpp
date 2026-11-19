@@ -477,6 +477,17 @@ void LoveEQAudioProcessorEditor::paint(juce::Graphics& g) {
     g.setColour(juce::Colour(0xff95a9b3));
     g.drawText("dBFS",meterBox.getX()+28,meterBox.getBottom()-45,49,14,juce::Justification::centred);
 
+    // Graphic view replaces the eight tiles with sixteen real frequency faders.
+    if(activeTab==2) {
+        g.setColour(juce::Colour(0xffb3c1c9));
+        g.setFont(juce::Font(juce::FontOptions(9.f,juce::Font::bold)));
+        for(int i=0;i<LoveEQAudioProcessor::graphicBandCount;++i) {
+            const auto bounds=graphicSliders[(size_t)i].getBounds();
+            const double hz=LoveEQAudioProcessor::graphicHz[(size_t)i];
+            const juce::String label=hz>=1000.0?juce::String(hz/1000.0,1)+"k":juce::String((int)hz);
+            g.drawText(label,bounds.getX()-3,bounds.getBottom()+1,bounds.getWidth()+6,14,juce::Justification::centred);
+        }
+    } else {
     // Eight colour-coded full-width tiles like the reference.
     for(int i=0;i<8;++i) {
         const auto b=bandButtons[(size_t)i].getBounds();
@@ -509,6 +520,7 @@ void LoveEQAudioProcessorEditor::paint(juce::Graphics& g) {
         g.setFont(juce::Font(juce::FontOptions(10.f,juce::Font::bold)));
         g.drawText(juce::String(val,1),b.getX()+7,b.getBottom()-22,b.getWidth()-16,16,juce::Justification::centredRight);
         g.fillEllipse((float)b.getX()+b.getWidth()*0.48f,b.getBottom()-16.f,5.f,5.f);
+    }
     }
 
     // Bottom edit strip: filter, dynamic band, and deliberately honest EQ Match status.
