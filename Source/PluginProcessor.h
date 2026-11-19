@@ -42,6 +42,7 @@ public:
 private:
     struct BandSettings {
         float hz=1000.f, gain=0.f, q=1.f, threshold=-24.f, range=-4.f, attack=10.f, release=160.f;
+        double attackCoefficient=0.99, releaseCoefficient=0.999;
         int type=0, channel=0, slope=1;
         bool enabled=true, dynamic=false, solo=false;
     };
@@ -58,9 +59,16 @@ private:
     };
     std::array<BandRuntime, bandCount> runtime;
     std::array<BandSettings, bandCount> settings;
+    struct BandParameterPointers {
+        std::atomic<float> *hz{}, *gain{}, *q{}, *type{}, *channel{}, *slope{},
+                           *enabled{}, *solo{}, *dynamic{}, *threshold{}, *range{},
+                           *attack{}, *release{};
+    };
+    std::array<BandParameterPointers, bandCount> bandParameters {};
+    std::atomic<float> *inputParam{}, *outputParam{}, *bypassParam{}, *sidechainParam{};
+    static float value(std::atomic<float>* p) noexcept { return p ? p->load(std::memory_order_relaxed):0.f; }
     juce::SmoothedValue<float> globalWet, inputGain, outputGain;
     double rate=48000.0;
-    float read(const juce::String& id) const noexcept;
     void refreshSettings();
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(LoveEQAudioProcessor)
 };

@@ -237,7 +237,7 @@ void LoveEQAudioProcessorEditor::paint(juce::Graphics& g) {
     }
     g.setFont(juce::Font(juce::FontOptions(10.f)));
     g.setColour(juce::Colour(0xff8fa1a6));
-    g.drawText("PARAMETRIC / DYNAMIC  |  MID/SIDE  |  ZERO LATENCY",graph.getX(),graph.getY()-31,620,16,juce::Justification::centredLeft);
+    g.drawText("PARAMETRIC / DYNAMIC  |  MID/SIDE  |  ZERO LATENCY",graph.getX()+135,graph.getY()-31,590,16,juce::Justification::centredLeft);
     g.drawText("DOUBLE-CLIC : VALEUR NUMÉRIQUE   |   GLISSER LES NŒUDS : FRÉQUENCE / GAIN",30,getHeight()-27,getWidth()-60,17,juce::Justification::centredLeft);
     g.drawText(onB?"COMPARAISON B":"COMPARAISON A",getWidth()-202,getHeight()-28,176,18,juce::Justification::centredRight);
 }

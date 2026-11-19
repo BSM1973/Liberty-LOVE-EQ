@@ -57,7 +57,29 @@ LoveEQAudioProcessor::LoveEQAudioProcessor()
  : AudioProcessor(BusesProperties().withInput("Input",juce::AudioChannelSet::stereo(),true)
                                    .withOutput("Output",juce::AudioChannelSet::stereo(),true)
                                    .withInput("Sidechain",juce::AudioChannelSet::stereo(),false)),
-   parameters(*this,&undoManager,"LOVE_EQ_STATE",makeParameterLayout()) {}
+   parameters(*this,&undoManager,"LOVE_EQ_STATE",makeParameterLayout()) {
+    inputParam=parameters.getRawParameterValue("input_gain");
+    outputParam=parameters.getRawParameterValue("output_gain");
+    bypassParam=parameters.getRawParameterValue("bypass");
+    sidechainParam=parameters.getRawParameterValue("external_sc");
+    for (int i=0;i<bandCount;++i) {
+        auto& p=bandParameters[(size_t)i];
+        const auto id=[i](const juce::String& s){return bandId(i,s);};
+        p.hz=parameters.getRawParameterValue(id("hz"));
+        p.gain=parameters.getRawParameterValue(id("gain"));
+        p.q=parameters.getRawParameterValue(id("q"));
+        p.type=parameters.getRawParameterValue(id("type"));
+        p.channel=parameters.getRawParameterValue(id("channel"));
+        p.slope=parameters.getRawParameterValue(id("slope"));
+        p.enabled=parameters.getRawParameterValue(id("enabled"));
+        p.solo=parameters.getRawParameterValue(id("solo"));
+        p.dynamic=parameters.getRawParameterValue(id("dynamic"));
+        p.threshold=parameters.getRawParameterValue(id("threshold"));
+        p.range=parameters.getRawParameterValue(id("range"));
+        p.attack=parameters.getRawParameterValue(id("attack"));
+        p.release=parameters.getRawParameterValue(id("release"));
+    }
+}
 
 bool LoveEQAudioProcessor::isBusesLayoutSupported(const BusesLayout& l) const {
     const auto mainIn=l.getMainInputChannelSet(), mainOut=l.getMainOutputChannelSet();
@@ -69,21 +91,18 @@ bool LoveEQAudioProcessor::isBusesLayoutSupported(const BusesLayout& l) const {
     return true;
 }
 
-float LoveEQAudioProcessor::read(const juce::String& id) const noexcept {
-    if (const auto* a=parameters.getRawParameterValue(id)) return a->load(std::memory_order_relaxed);
-    return 0.f;
-}
-
 void LoveEQAudioProcessor::refreshSettings() {
     for (int i=0;i<bandCount;++i) {
         auto& b=settings[(size_t)i];
-        const auto id=[i](const juce::String& s){return bandId(i,s);};
-        b.hz=read(id("hz")); b.gain=read(id("gain")); b.q=read(id("q"));
-        b.type=(int)read(id("type")); b.channel=(int)read(id("channel")); b.slope=(int)read(id("slope"));
-        b.enabled=read(id("enabled"))>0.5f; b.solo=read(id("solo"))>0.5f;
-        b.dynamic=read(id("dynamic"))>0.5f;
-        b.threshold=read(id("threshold")); b.range=read(id("range"));
-        b.attack=read(id("attack")); b.release=read(id("release"));
+        const auto& p=bandParameters[(size_t)i];
+        b.hz=value(p.hz); b.gain=value(p.gain); b.q=value(p.q);
+        b.type=(int)value(p.type); b.channel=(int)value(p.channel); b.slope=(int)value(p.slope);
+        b.enabled=value(p.enabled)>0.5f; b.solo=value(p.solo)>0.5f;
+        b.dynamic=value(p.dynamic)>0.5f;
+        b.threshold=value(p.threshold); b.range=value(p.range);
+        b.attack=value(p.attack); b.release=value(p.release);
+        b.attackCoefficient=std::exp(-1.0/(rate*std::max(0.001,0.001*(double)b.attack)));
+        b.releaseCoefficient=std::exp(-1.0/(rate*std::max(0.001,0.001*(double)b.release)));
     }
 }
 
@@ -129,9 +148,9 @@ void LoveEQAudioProcessor::prepareToPlay(double sampleRate,int) {
     rate=sampleRate;
     refreshSettings();
     for (int i=0;i<bandCount;++i) runtime[(size_t)i].reset(rate,settings[(size_t)i]);
-    globalWet.reset(rate,0.018); globalWet.setCurrentAndTargetValue(read("bypass")>0.5f?0.f:1.f);
-    inputGain.reset(rate,0.018); inputGain.setCurrentAndTargetValue(juce::Decibels::decibelsToGain(read("input_gain")));
-    outputGain.reset(rate,0.018); outputGain.setCurrentAndTargetValue(juce::Decibels::decibelsToGain(read("output_gain")));
+    globalWet.reset(rate,0.018); globalWet.setCurrentAndTargetValue(value(bypassParam)>0.5f?0.f:1.f);
+    inputGain.reset(rate,0.018); inputGain.setCurrentAndTargetValue(juce::Decibels::decibelsToGain(value(inputParam)));
+    outputGain.reset(rate,0.018); outputGain.setCurrentAndTargetValue(juce::Decibels::decibelsToGain(value(outputParam)));
     peakIn.store(0.f); peakOut.store(0.f); scopeIndex.store(0);
     for(auto& a:scopeBefore) a.store(0.f);
     for(auto& a:scopeAfter) a.store(0.f);
@@ -147,15 +166,15 @@ void LoveEQAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,juce::M
     refreshSettings();
     bool anySolo=false;
     for (const auto& s:settings) anySolo=anySolo||s.solo;
-    const bool sc=read("external_sc")>0.5f && getBusCount(true)>1 && getBus(true,1)->isEnabled();
+    const bool sc=value(sidechainParam)>0.5f && getBusCount(true)>1 && getBus(true,1)->isEnabled();
     const int mainInputChannels=getMainBusNumInputChannels();
     const float* sideL=(sc && buffer.getNumChannels()>mainInputChannels)?buffer.getReadPointer(mainInputChannels):nullptr;
     const float* sideR=(sc && buffer.getNumChannels()>mainInputChannels+1)?buffer.getReadPointer(mainInputChannels+1):sideL;
     auto* left=buffer.getWritePointer(0);
     auto* right=(channels==2)?buffer.getWritePointer(1):nullptr;
-    inputGain.setTargetValue(juce::Decibels::decibelsToGain(read("input_gain")));
-    outputGain.setTargetValue(juce::Decibels::decibelsToGain(read("output_gain")));
-    globalWet.setTargetValue(read("bypass")>0.5f?0.f:1.f);
+    inputGain.setTargetValue(juce::Decibels::decibelsToGain(value(inputParam)));
+    outputGain.setTargetValue(juce::Decibels::decibelsToGain(value(outputParam)));
+    globalWet.setTargetValue(value(bypassParam)>0.5f?0.f:1.f);
     for (int i=0;i<bandCount;++i) {
         const auto& s=settings[(size_t)i]; auto& rt=runtime[(size_t)i];
         rt.smoothedHz.setTargetValue(s.hz);
@@ -174,12 +193,10 @@ void LoveEQAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,juce::M
             rt.smoothedHz.getNextValue(); rt.smoothedGain.getNextValue(); rt.smoothedQ.getNextValue();
             if (--rt.controlCountdown<=0) { rt.updateCoefficients(rate,s); rt.controlCountdown=32; }
             const float dl=sideL?sideL[sample]:l, dr=sideR?sideR[sample]:r;
-            const double attack=std::exp(-1.0/(rate*std::max(0.001,0.001*(double)s.attack)));
-            const double release=std::exp(-1.0/(rate*std::max(0.001,0.001*(double)s.release)));
-            for(int ch=0;ch<(right?2:1);++ch) {
+                        for(int ch=0;ch<(right?2:1);++ch) {
                 const double detected=std::abs(rt.detectors[(size_t)ch].process(ch==0?dl:dr));
                 auto& env=rt.envelope[(size_t)ch];
-                env=(detected>env?attack:release)*env+(1.0-(detected>env?attack:release))*detected;
+                env=(detected>env?s.attackCoefficient:s.releaseCoefficient)*env+(1.0-(detected>env?s.attackCoefficient:s.releaseCoefficient))*detected;
             }
             const float wet=rt.wet.getNextValue();
             if (!right) {
