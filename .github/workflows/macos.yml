@@ -26,7 +26,7 @@ jobs:
 
   macos-arm64:
     name: AU / VST3 / Standalone - Apple Silicon
-    # Compile for arm64 on a separate Intel macOS runner pool.
+    # Build universal x86_64+arm64 so JUCE VST3 helper can run on the Intel host.
     # macos-15 was cancelled before checkout in two runs (no steps/logs).
     runs-on: macos-15-intel
     timeout-minutes: 55
@@ -39,7 +39,7 @@ jobs:
           xcodebuild -version
           cmake --version
       - name: Configure for Apple Silicon
-        run: cmake -S . -B build -G Xcode -DCMAKE_OSX_ARCHITECTURES=arm64 -DCMAKE_OSX_DEPLOYMENT_TARGET=12.0 -DCMAKE_BUILD_TYPE=Release
+        run: cmake -S . -B build -G Xcode '-DCMAKE_OSX_ARCHITECTURES=x86_64;arm64' -DCMAKE_OSX_DEPLOYMENT_TARGET=12.0 -DCMAKE_BUILD_TYPE=Release
       - name: Build AU VST3 Standalone
         run: cmake --build build --config Release --target LoveEQ_All --parallel 3
       - name: Test EQ core and factory presets
