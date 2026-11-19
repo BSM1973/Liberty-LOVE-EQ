@@ -20,6 +20,13 @@ private:
         Theme();
         juce::Font getTextButtonFont(juce::TextButton&,int buttonHeight) override;
     } theme;
+    class HistoryButton final : public juce::TextButton {
+    public:
+        explicit HistoryButton(bool isRedo):redo(isRedo){setButtonText("");}
+        void paintButton(juce::Graphics&,bool highlighted,bool down) override;
+    private:
+        bool redo;
+    };
     LoveEQAudioProcessor& processor;
     std::array<juce::TextButton,8> bandButtons;
     juce::TextButton tabParam {"PARAM\u00C9TRIQUE"}, tabDynamic {"DYNAMIQUE"}, tabGraphic {"GRAPHIQUE"};
@@ -29,8 +36,9 @@ private:
     juce::TextButton browserButton {"PRESETS"},peakResetButton {"PEAK RESET"};
     std::unique_ptr<LoveEQPresetBrowser> presetBrowser;
     juce::ComboBox presetCombo, typeBox, channelBox, slopeBox;
-    juce::TextButton buttonA {"A"}, buttonB {"B"}, undoButton {"ANNULER"}, redoButton {"REFAIRE"},
-                     resetButton {"RESET / FLAT"}, bypassButton {"BYPASS"},
+    juce::TextButton buttonA {"A"}, buttonB {"B"};
+    HistoryButton undoButton {false}, redoButton {true};
+    juce::TextButton resetButton {"RESET / FLAT"}, bypassButton {"BYPASS"},
                      preButton {"PRE"}, postButton {"POST"};
     juce::ToggleButton enabledButton {"ACTIF"}, soloButton {"SOLO"}, dynamicButton {"DYNAMIQUE"};
     juce::Slider frequency, gain, q, threshold, range, attack, release, input, output;

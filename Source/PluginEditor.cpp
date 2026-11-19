@@ -34,6 +34,26 @@ LoveEQAudioProcessorEditor::Theme::Theme() {
 juce::Font LoveEQAudioProcessorEditor::Theme::getTextButtonFont(juce::TextButton&,int) {
     return juce::Font(juce::FontOptions(11.2f));
 }
+void LoveEQAudioProcessorEditor::HistoryButton::paintButton(juce::Graphics& g,bool highlighted,bool down) {
+    auto bounds=getLocalBounds().toFloat().reduced(1.f);
+    g.setColour(down?juce::Colour(0xff4b4538):
+                  highlighted?juce::Colour(0xff35424e):juce::Colour(0xff25313b));
+    g.fillRoundedRectangle(bounds,5.f);
+    g.setColour(juce::Colour(0xff52616b));
+    g.drawRoundedRectangle(bounds,5.f,1.f);
+    g.setColour(juce::Colour(0xffdfc894));
+    const float cx=(float)getWidth()*0.5f,cy=(float)getHeight()*0.5f;
+    const float flip=redo?-1.f:1.f;
+    juce::Path curve;
+    curve.startNewSubPath(cx+9.f*flip,cy+5.f);
+    curve.cubicTo(cx+12.f*flip,cy-7.f,cx-1.f*flip,cy-10.f,cx-7.f*flip,cy-2.f);
+    g.strokePath(curve,juce::PathStrokeType(2.3f));
+    juce::Path arrow;
+    arrow.startNewSubPath(cx-12.f*flip,cy-7.f);
+    arrow.lineTo(cx-7.f*flip,cy-2.f);
+    arrow.lineTo(cx-2.f*flip,cy-6.f);
+    g.strokePath(arrow,juce::PathStrokeType(2.2f));
+}
 LoveEQAudioProcessorEditor::LoveEQAudioProcessorEditor(LoveEQAudioProcessor& p)
  : AudioProcessorEditor(&p),processor(p) {
     setLookAndFeel(&theme);
@@ -317,23 +337,6 @@ void LoveEQAudioProcessorEditor::paint(juce::Graphics& g) {
     g.setColour(juce::Colour(0xff7e8b98));
     g.setFont(juce::Font(juce::FontOptions(9.8f,juce::Font::bold)));
     g.drawText(tr("BIBLIOTH\u00c8QUE DE PRESETS","PRESET LIBRARY"),350,18,265,15,juce::Justification::centredLeft);
-    // Geometric history arrows; no icon fonts or encoding-dependent symbols.
-    auto drawHistoryIcon=[&](juce::Rectangle<int> bounds,bool redo) {
-        g.setColour(juce::Colour(0xffd1d7d9));
-        const float cx=(float)bounds.getCentreX(),cy=(float)bounds.getCentreY();
-        const float flip=redo?-1.f:1.f;
-        juce::Path curve;
-        curve.startNewSubPath(cx+9.f*flip,cy+5.f);
-        curve.cubicTo(cx+12.f*flip,cy-7.f,cx-1.f*flip,cy-10.f,cx-7.f*flip,cy-2.f);
-        g.strokePath(curve,juce::PathStrokeType(2.f));
-        juce::Path arrow;
-        arrow.startNewSubPath(cx-12.f*flip,cy-7.f);
-        arrow.lineTo(cx-7.f*flip,cy-2.f);
-        arrow.lineTo(cx-2.f*flip,cy-6.f);
-        g.strokePath(arrow,juce::PathStrokeType(2.f));
-    };
-    drawHistoryIcon(undoButton.getBounds(),false);
-    drawHistoryIcon(redoButton.getBounds(),true);
     g.setColour(trim);
     g.drawHorizontalLine(83,23.f,(float)w-23.f);
 
