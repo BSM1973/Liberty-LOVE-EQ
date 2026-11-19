@@ -1,6 +1,7 @@
 #pragma once
 #include <JuceHeader.h>
 #include "PluginProcessor.h"
+#include "PresetBrowser.h"
 
 class LoveEQAudioProcessorEditor final : public juce::AudioProcessorEditor, private juce::Timer {
 public:
@@ -17,18 +18,24 @@ private:
     class Theme final : public juce::LookAndFeel_V4 {
     public:
         Theme();
+        juce::Font getTextButtonFont(juce::TextButton&,int buttonHeight) override;
     } theme;
     LoveEQAudioProcessor& processor;
     std::array<juce::TextButton,8> bandButtons;
     juce::TextButton tabParam {"PARAM\u00C9TRIQUE"}, tabDynamic {"DYNAMIQUE"}, tabGraphic {"GRAPHIQUE"};
     juce::TextButton holdButton {"MAINTIEN PIC"}, freezeButton {"FIGER"};
     juce::TextEditor presetSearch;
+    juce::ComboBox languageBox;
+    juce::TextButton browserButton {"PRESETS"},peakResetButton {"PEAK RESET"};
+    std::unique_ptr<LoveEQPresetBrowser> presetBrowser;
     juce::ComboBox presetCombo, typeBox, channelBox, slopeBox;
     juce::TextButton buttonA {"A"}, buttonB {"B"}, undoButton {"ANNULER"}, redoButton {"REFAIRE"},
                      resetButton {"RESET / FLAT"}, bypassButton {"BYPASS"},
                      preButton {"PRE"}, postButton {"POST"};
     juce::ToggleButton enabledButton {"ACTIF"}, soloButton {"SOLO"}, dynamicButton {"DYNAMIQUE"};
     juce::Slider frequency, gain, q, threshold, range, attack, release, input, output;
+    std::array<juce::Slider,LoveEQAudioProcessor::graphicBandCount> graphicSliders;
+    std::array<std::unique_ptr<SliderAttachment>,LoveEQAudioProcessor::graphicBandCount> graphicAttachments;
     std::unique_ptr<SliderAttachment> hzAttach, gainAttach, qAttach, thresholdAttach, rangeAttach,
                                        attackAttach, releaseAttach, inputAttach, outputAttach;
     std::unique_ptr<ComboAttachment> typeAttach, channelAttach, slopeAttach;
@@ -36,10 +43,13 @@ private:
     juce::ValueTree stateA, stateB;
     bool onB=false, showPre=true, showPost=true, freezeSpectrum=false, holdSpectrum=false;
     int activeTab=0;
+    bool english=false;
+    juce::String tr(const char* fr,const char* en) const {return english?juce::String(en):juce::String(fr);}
+    void updateGraphicVisibility();
     std::array<float,1025> heldPre {}, heldPost {};
     void selectTab(int tab);
     void updateLanguageSafeTexts();
-    int selectedBand=0, draggingBand=-1;
+    int selectedBand=0, draggingBand=-1, draggingGraphic=-1;
     juce::Rectangle<int> graph, meterBox, bandRow, controls;
     juce::Rectangle<int> spectrumPanel, bottomPanel, footerPanel;
     juce::dsp::FFT fft {11};

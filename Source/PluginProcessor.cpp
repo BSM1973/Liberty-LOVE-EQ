@@ -29,6 +29,9 @@ APVTS::ParameterLayout LoveEQAudioProcessor::makeParameterLayout() {
     p.add(fl("output_gain","Output Gain",-24.f,24.f,0.f));
     p.add(boolean("bypass","Bypass",false));
     p.add(boolean("external_sc","External Sidechain",false));
+    p.add(choice("eq_mode","EQ Mode",{"Parametric","Graphic"},0));
+    for(int band=0;band<graphicBandCount;++band)
+        p.add(fl(graphicId(band),"Graphic Gain "+juce::String(band+1),-18.f,18.f,0.f,0.1f));
     const juce::StringArray types {"Bell","Low Shelf","High Shelf","High Pass","Low Pass","Notch","Band Pass"};
     const juce::StringArray channels {"Stereo","Left","Right","Mid","Side"};
     const juce::StringArray slopes {"6 dB/oct","12 dB/oct","18 dB/oct","24 dB/oct","36 dB/oct","48 dB/oct"};
@@ -62,6 +65,8 @@ LoveEQAudioProcessor::LoveEQAudioProcessor()
     outputParam=parameters.getRawParameterValue("output_gain");
     bypassParam=parameters.getRawParameterValue("bypass");
     sidechainParam=parameters.getRawParameterValue("external_sc");
+    eqModeParam=parameters.getRawParameterValue("eq_mode");
+    for(int i=0;i<graphicBandCount;++i) graphicParams[(size_t)i]=parameters.getRawParameterValue(graphicId(i));
     for (int i=0;i<bandCount;++i) {
         auto& p=bandParameters[(size_t)i];
         const auto id=[i](const juce::String& s){return bandId(i,s);};
@@ -151,7 +156,16 @@ void LoveEQAudioProcessor::prepareToPlay(double sampleRate,int) {
     globalWet.reset(rate,0.018); globalWet.setCurrentAndTargetValue(value(bypassParam)>0.5f?0.f:1.f);
     inputGain.reset(rate,0.018); inputGain.setCurrentAndTargetValue(juce::Decibels::decibelsToGain(value(inputParam)));
     outputGain.reset(rate,0.018); outputGain.setCurrentAndTargetValue(juce::Decibels::decibelsToGain(value(outputParam)));
-    peakIn.store(0.f); peakOut.store(0.f); scopeIndex.store(0);
+    for(int i=0;i<graphicBandCount;++i) {
+        auto& gr=graphicRuntime[(size_t)i];
+        gr.reset(rate);
+        gr.gain.setCurrentAndTargetValue(value(graphicParams[(size_t)i]));
+    }
+    graphicBlend.reset(rate,0.030);
+    graphicBlend.setCurrentAndTargetValue(value(eqModeParam)>0.5f?1.f:0.f);
+    peakIn.store(0.f); peakOut.store(0.f);
+    resetPeakHold();
+    scopeIndex.store(0);
     for(auto& a:scopeBefore) a.store(0.f);
     for(auto& a:scopeAfter) a.store(0.f);
     setLatencySamples(0);
@@ -175,6 +189,9 @@ void LoveEQAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,juce::M
     inputGain.setTargetValue(juce::Decibels::decibelsToGain(value(inputParam)));
     outputGain.setTargetValue(juce::Decibels::decibelsToGain(value(outputParam)));
     globalWet.setTargetValue(value(bypassParam)>0.5f?0.f:1.f);
+    graphicBlend.setTargetValue(value(eqModeParam)>0.5f?1.f:0.f);
+    for(int i=0;i<graphicBandCount;++i)
+        graphicRuntime[(size_t)i].gain.setTargetValue(value(graphicParams[(size_t)i]));
     for (int i=0;i<bandCount;++i) {
         const auto& s=settings[(size_t)i]; auto& rt=runtime[(size_t)i];
         rt.smoothedHz.setTargetValue(s.hz);
@@ -188,6 +205,20 @@ void LoveEQAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,juce::M
         inPeak=std::max({inPeak,std::abs(origL),std::abs(origR)});
         float l=origL*inputGain.getNextValue();
         float r=right?origR*inputGain.getCurrentValue():l;
+        // Both engines run while crossfading so filter histories remain warm.
+        float graphicL=l, graphicR=r;
+        for(int gi=0;gi<graphicBandCount;++gi) {
+            auto& gr=graphicRuntime[(size_t)gi];
+            const float db=gr.gain.getNextValue();
+            if(--gr.countdown<=0) {
+                const auto coeff=loveeq::design(loveeq::Type::Bell,rate,graphicHz[(size_t)gi],db,1.8);
+                for(auto& lane:gr.channels) lane.set(coeff);
+                gr.countdown=32;
+            }
+            graphicL=gr.channels[0].process(graphicL);
+            if(right) graphicR=gr.channels[1].process(graphicR);
+            else graphicR=graphicL;
+        }
         for(int band=0;band<bandCount;++band) {
             auto& rt=runtime[(size_t)band]; const auto& s=settings[(size_t)band];
             rt.smoothedHz.getNextValue(); rt.smoothedGain.getNextValue(); rt.smoothedQ.getNextValue();
@@ -215,6 +246,9 @@ void LoveEQAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,juce::M
                 if(s.channel!=1) r+=wet*(pr-r);
             }
         }
+        const float graphicAmount=graphicBlend.getNextValue();
+        l+=graphicAmount*(graphicL-l);
+        if(right) r+=graphicAmount*(graphicR-r);
         const float outGainNow=outputGain.getNextValue();
         const float mix=globalWet.getNextValue();
         const float finalL=origL+mix*(l*outGainNow-origL);
@@ -229,6 +263,12 @@ void LoveEQAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,juce::M
     }
     peakIn.store(inPeak,std::memory_order_relaxed);
     peakOut.store(outPeak,std::memory_order_relaxed);
+    auto updatePeak=[](std::atomic<float>& hold,float peak) noexcept {
+        float previous=hold.load(std::memory_order_relaxed);
+        while(previous<peak && !hold.compare_exchange_weak(previous,peak,std::memory_order_release,std::memory_order_relaxed)) {}
+    };
+    updatePeak(peakHoldIn,inPeak);
+    updatePeak(peakHoldOut,outPeak);
 }
 
 void LoveEQAudioProcessor::getStateInformation(juce::MemoryBlock& out) {
@@ -249,6 +289,7 @@ void LoveEQAudioProcessor::loadFactoryPreset(size_t index) {
     };
     undoManager.beginNewTransaction("Factory preset");
     set("input_gain",0); set("output_gain",0); set("bypass",0); set("external_sc",0);
+    set("eq_mode",0.f);
     for(int i=0;i<bandCount;++i) {
         const auto& b=data[(size_t)i];
         const auto id=[i](const juce::String& s){return bandId(i,s);};
@@ -266,6 +307,8 @@ void LoveEQAudioProcessor::resetToFlat() {
     };
     undoManager.beginNewTransaction("Reset flat");
     set("input_gain",0.f);set("output_gain",0.f);set("bypass",0.f);set("external_sc",0.f);
+    set("eq_mode",0.f);
+    for(int i=0;i<graphicBandCount;++i) set(graphicId(i),0.f);
     for(int i=0;i<bandCount;++i) {
         const auto id=[i](const juce::String& s){return bandId(i,s);};
         set(id("hz"),63.f*std::pow(2.f,(float)i));
@@ -279,3 +322,21 @@ void LoveEQAudioProcessor::resetToFlat() {
 }
 juce::AudioProcessorEditor* LoveEQAudioProcessor::createEditor() { return new LoveEQAudioProcessorEditor(*this); }
 juce::AudioProcessor* JUCE_CALLTYPE createPluginFilter() { return new LoveEQAudioProcessor(); }
+
+bool LoveEQAudioProcessor::isFavorite(size_t index) const {
+    if(index>=100) return false;
+    const auto stored=parameters.state.getProperty("factoryFavorites").toString();
+    return (int)index<stored.length() && stored[(int)index]=='1';
+}
+void LoveEQAudioProcessor::setFavorite(size_t index,bool favorite) {
+    if(index>=100) return;
+    auto stored=parameters.state.getProperty("factoryFavorites").toString().paddedRight('0',100);
+    stored=stored.replaceSection((int)index,1,favorite?"1":"0");
+    parameters.state.setProperty("factoryFavorites",stored,nullptr);
+}
+juce::String LoveEQAudioProcessor::getUiLanguage() const {
+    return parameters.state.getProperty("uiLanguage","fr").toString()=="en"?"en":"fr";
+}
+void LoveEQAudioProcessor::setUiLanguage(const juce::String& language) {
+    parameters.state.setProperty("uiLanguage",language=="en"?"en":"fr",nullptr);
+}

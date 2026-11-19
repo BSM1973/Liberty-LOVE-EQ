@@ -8,6 +8,12 @@ class LoveEQAudioProcessor final : public juce::AudioProcessor {
 public:
     static constexpr int bandCount = 8;
     static constexpr int scopeSize = 2048;
+    static constexpr int graphicBandCount = 16;
+    static constexpr std::array<double,graphicBandCount> graphicHz {
+        25.0,40.0,63.0,100.0,160.0,250.0,400.0,630.0,
+        1000.0,1600.0,2500.0,4000.0,6300.0,10000.0,16000.0,20000.0
+    };
+    static juce::String graphicId(int index) { return "graphic_gain_" + juce::String(index+1); }
     LoveEQAudioProcessor();
     ~LoveEQAudioProcessor() override = default;
 
@@ -33,6 +39,12 @@ public:
     juce::UndoManager undoManager;
     juce::AudioProcessorValueTreeState parameters;
     std::atomic<float> peakIn { 0.f }, peakOut { 0.f };
+    std::atomic<float> peakHoldIn { 0.f }, peakHoldOut { 0.f };
+    void resetPeakHold() noexcept { peakHoldIn.store(0.f); peakHoldOut.store(0.f); }
+    bool isFavorite(size_t index) const;
+    void setFavorite(size_t index,bool favorite);
+    juce::String getUiLanguage() const;
+    void setUiLanguage(const juce::String& language);
     std::array<std::atomic<float>, scopeSize> scopeBefore {}, scopeAfter {};
     std::atomic<unsigned int> scopeIndex { 0 };
     void loadFactoryPreset(size_t index);
@@ -57,6 +69,21 @@ private:
         void updateCoefficients(double sampleRate, const BandSettings&);
         float filtered(int channel, float input) noexcept;
     };
+    struct GraphicRuntime {
+        std::array<loveeq::Biquad,2> channels {};
+        juce::SmoothedValue<float> gain;
+        int countdown=0;
+        void reset(double sr) {
+            for(auto& f:channels) f.reset();
+            gain.reset(sr,0.025);
+            gain.setCurrentAndTargetValue(0.f);
+            countdown=0;
+        }
+    };
+    std::array<GraphicRuntime,graphicBandCount> graphicRuntime {};
+    std::array<std::atomic<float>*,graphicBandCount> graphicParams {};
+    std::atomic<float>* eqModeParam {};
+    juce::SmoothedValue<float> graphicBlend;
     std::array<BandRuntime, bandCount> runtime;
     std::array<BandSettings, bandCount> settings;
     struct BandParameterPointers {

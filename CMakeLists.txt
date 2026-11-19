@@ -25,6 +25,7 @@ juce_generate_juce_header(LoveEQ)
 target_sources(LoveEQ PRIVATE
     Source/EqCore.h
     Source/FactoryPresets.h
+    Source/PresetBrowser.h
     Source/PluginProcessor.h
     Source/PluginProcessor.cpp
     Source/PluginEditor.h
@@ -48,3 +49,7 @@ add_test(NAME loveeq_core COMMAND loveeq_core_test)
 add_executable(loveeq_presets_test tests/presets_test.cpp)
 target_compile_features(loveeq_presets_test PRIVATE cxx_std_17)
 add_test(NAME loveeq_presets COMMAND loveeq_presets_test)
+
+add_executable(loveeq_graphic_test tests/graphic_test.cpp)
+target_compile_features(loveeq_graphic_test PRIVATE cxx_std_17)
+add_test(NAME loveeq_graphic COMMAND loveeq_graphic_test)

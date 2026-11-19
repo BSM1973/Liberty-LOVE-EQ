@@ -4,6 +4,16 @@
 
 LOVE EQ is a new real-time professional equalizer for mixing and sound design. This is the **v0.1 development foundation**, not a released or commercially validated audio plugin.
 
+## Current development: professional UI, languages and graphic mode
+
+- Native French (default) / English selection; critical accented strings are encoded via C++ Unicode escapes.
+- Professional embedded preset browser for all 100 presets: categories, multi-word search, musical tags and saved favorites; double-click to load.
+- Native vector-drawn Undo / Redo icons, no icon-font glyphs; Peak Reset holds and clears IN/OUT peaks.
+- Actual 16-band graphic equalizer with independent host-automatable gains (-18 to +18 dB) and interpolated mode crossfade with the parametric engine. No fake button.
+- Selected parametric band tints the full lower adjustment panel; band 5 uses its cyan colour.
+- Geometric CI checks of header controls plus preexisting UTF-8 validation; final visual review in a real host remains necessary.
+- Existing zero-latency parametric/dynamic engine, 100 presets and macOS AU/VST3/Standalone targets remain available.
+
 ## Implemented in v0.1
 
 - Eight automation-ready parametric bands with bell, low/high shelf, high/low pass, notch and band-pass filters.
@@ -20,7 +30,7 @@ LOVE EQ is a new real-time professional equalizer for mixing and sound design. T
 
 ## Not yet implemented
 
-Linear Phase, Natural Phase as a distinct processing algorithm, genuine 16/24/32-band graphic EQ, EQ Match, analyzer freeze/peak hold, external reference audio monitor, persistent A/B across sessions, automatic makeup gain, signed and notarized installers, and Windows CI. Those controls are intentionally not shown as functioning features.
+Linear Phase, Natural Phase as a distinct processing algorithm, EQ Match, analyzer freeze/peak hold, external reference audio monitor, persistent A/B across sessions, automatic makeup gain, signed and notarized installers, and Windows CI. Those controls are intentionally not shown as functioning features.
 
 ## Build
 
