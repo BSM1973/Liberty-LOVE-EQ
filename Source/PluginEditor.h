@@ -2,6 +2,8 @@
 #include <JuceHeader.h>
 #include "PluginProcessor.h"
 #include "PresetBrowser.h"
+#include "CurveLab.h"
+#include <vector>
 
 class LoveEQAudioProcessorEditor final : public juce::AudioProcessorEditor, private juce::Timer {
 public:
@@ -11,6 +13,8 @@ public:
     void resized() override;
     void mouseDown(const juce::MouseEvent&) override;
     void mouseDrag(const juce::MouseEvent&) override;
+    void mouseUp(const juce::MouseEvent&) override;
+    void mouseDoubleClick(const juce::MouseEvent&) override;
 private:
     using SliderAttachment=juce::AudioProcessorValueTreeState::SliderAttachment;
     using ComboAttachment=juce::AudioProcessorValueTreeState::ComboBoxAttachment;
@@ -41,6 +45,7 @@ private:
     std::array<juce::TextButton,8> bandButtons;
     juce::TextButton tabParam {u8"PARAMÉTRIQUE"}, tabDynamic {"DYNAMIQUE"}, tabGraphic {"GRAPHIQUE"};
     juce::TextButton holdButton {"MAINTIEN PIC"}, freezeButton {"FIGER"};
+    juce::TextButton sketchButton {"DESSIN"}, notesButton {"NOTES"}, grabButton {"CAPTER PIC"};
     juce::TextEditor presetSearch;
     juce::ComboBox languageBox;
     juce::TextButton browserButton {"PRESETS"},peakResetButton {"PEAK RESET"};
@@ -60,6 +65,11 @@ private:
     std::unique_ptr<ButtonAttachment> enabledAttach, soloAttach, dynamicAttach, bypassAttach;
     juce::ValueTree stateA, stateB;
     bool onB=false, showPre=true, showPost=true, freezeSpectrum=false, holdSpectrum=false;
+    bool sketchMode=false, sketchActive=false, noteGrid=false;
+    std::vector<loveeq::curvelab::SketchPoint> sketchPoints;
+    void addSketchPoint(const juce::Point<float>&);
+    void applySketch();
+    void grabSpectrumPeak();
     int activeTab=0;
     bool english=false;
     juce::String tr(const char* fr,const char* en) const {return english?juce::String(en):juce::String(fr);}

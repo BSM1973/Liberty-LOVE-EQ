@@ -55,6 +55,14 @@ if bad:
     sys.exit(1)
 
 
+
+# New musical workflow must remain wired to real JUCE controls, not a paint-only mockup.
+for token in ('sketchButton.setBounds(', 'notesButton.setBounds(', 'grabButton.setBounds(',
+              'void LoveEQAudioProcessorEditor::mouseUp(', 'void LoveEQAudioProcessorEditor::applySketch(',
+              'void LoveEQAudioProcessorEditor::grabSpectrumPeak(', 'fitSketch(sketchPoints'):
+    if token not in ui:
+        bad.append(f"Curve Lab UI control missing: {token}")
+
 # Fail CI if the most frequent 13-inch layout collision regressions reappear.
 layout_contract={
     "header_browse":(660,37,102,32),

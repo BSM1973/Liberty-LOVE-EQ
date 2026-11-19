@@ -212,6 +212,18 @@ LoveEQAudioProcessorEditor::LoveEQAudioProcessorEditor(LoveEQAudioProcessor& p)
     };
     freezeButton.setClickingTogglesState(true);
     freezeButton.onClick=[this]{freezeSpectrum=freezeButton.getToggleState();};
+    for(juce::TextButton* b : std::array<juce::TextButton*,3>{&sketchButton,&notesButton,&grabButton})show(*b);
+    sketchButton.setClickingTogglesState(true);
+    notesButton.setClickingTogglesState(true);
+    sketchButton.onClick=[this]{
+        sketchMode=sketchButton.getToggleState();
+        sketchActive=false;
+        sketchPoints.clear();
+        if(sketchMode && activeTab==2)selectTab(0);
+        repaint();
+    };
+    notesButton.onClick=[this]{noteGrid=notesButton.getToggleState();repaint();};
+    grabButton.onClick=[this]{grabSpectrumPeak();};
     for(auto* b:{&enabledButton,&soloButton,&dynamicButton}) show(*b);
     for(auto* b:{&typeBox,&channelBox,&slopeBox}) show(*b);
     const juce::StringArray types {"Bell","Low Shelf","High Shelf","High Pass","Low Pass","Notch","Band Pass"};
@@ -308,6 +320,15 @@ void LoveEQAudioProcessorEditor::updateLanguageSafeTexts() {
     dynamicButton.setButtonText(tr("DYN","DYN"));
     soloButton.setButtonText("SOLO");
     peakResetButton.setButtonText("PEAK RESET");
+    sketchButton.setButtonText(tr("DESSIN","SKETCH"));
+    notesButton.setButtonText(tr("NOTES","NOTES"));
+    grabButton.setButtonText(tr("CAPTER PIC","GRAB PEAK"));
+    sketchButton.setTooltip(tr("Dessiner une courbe : le moteur adapte huit filtres réels",
+                                 "Draw a curve, then fit eight real EQ filters"));
+    notesButton.setTooltip(tr("Afficher les notes. Alt-glisser pour caler une fréquence",
+                                "Display note guides. Alt-drag to snap a frequency"));
+    grabButton.setTooltip(tr("Repérer une résonance dans le spectre et placer la bande choisie, sans modifier son gain",
+                               "Find a spectral resonance and position the selected band with no gain change"));
     // Localise filter names without changing their underlying parameter indices.
     const int currentType=juce::jmax(1,typeBox.getSelectedId());
     typeBox.clear(juce::dontSendNotification);
@@ -527,6 +548,32 @@ void LoveEQAudioProcessorEditor::paint(juce::Graphics& g) {
         g.setFont(juce::Font(juce::FontOptions(11.f,juce::Font::bold)));
         g.drawText(juce::String(band+1),(int)x-10,(int)y-10,20,20,juce::Justification::centred);
     }
+    if(noteGrid) {
+        g.setColour(juce::Colour(0xff809ba9).withAlpha(0.62f));
+        g.setFont(juce::Font(juce::FontOptions("Arial",9.f,juce::Font::plain)));
+        float lastX=-100.f;
+        for(int midi=24;midi<=120;midi+=3) {
+            const double hz=440.0*std::pow(2.0,(midi-69)/12.0);
+            if(hz<25.0 || hz>18000.0)continue;
+            const float x=xForHz((float)hz);
+            if(x-lastX<43.f)continue;
+            lastX=x;
+            g.drawText(juce::String(loveeq::curvelab::noteName(hz)),
+                       (int)x-22,graph.getBottom()-22,44,14,juce::Justification::centred);
+        }
+    }
+    if(sketchActive && sketchPoints.size()>1) {
+        juce::Path preview;
+        for(size_t k=0;k<sketchPoints.size();++k) {
+            const auto& point=sketchPoints[k];
+            const float px=(float)graph.getX()+(float)point.position*graph.getWidth();
+            const float py=yForDb((float)point.gain);
+            if(k==0)preview.startNewSubPath(px,py);else preview.lineTo(px,py);
+        }
+        g.setColour(juce::Colour(0xfff5cd83));
+        g.strokePath(preview,juce::PathStrokeType(2.f,juce::PathStrokeType::curved,
+                                                  juce::PathStrokeType::rounded));
+    }
     g.restoreState();
     g.setColour(juce::Colour(0xff91a0a9));
     g.setFont(juce::Font(juce::FontOptions(10.f)));
@@ -715,6 +762,9 @@ void LoveEQAudioProcessorEditor::resized() {
     postButton.setBounds(183,155,49,25);
     holdButton.setBounds(245,155,103,25);
     freezeButton.setBounds(352,155,58,25);
+    sketchButton.setBounds(418,155,79,25);
+    notesButton.setBounds(502,155,72,25);
+    grabButton.setBounds(579,155,101,25);
     graph={65,210,w-219,239};
     meterBox={w-132,192,101,272};
     peakResetButton.setBounds(meterBox.getX()+4,meterBox.getBottom()-26,93,23);
@@ -758,6 +808,12 @@ void LoveEQAudioProcessorEditor::mouseDown(const juce::MouseEvent& e) {
     draggingBand=-1;
     draggingGraphic=-1;
     if(!graph.contains(e.getPosition())) return;
+    if(sketchMode && activeTab!=2) {
+        sketchActive=true;
+        sketchPoints.clear();
+        addSketchPoint(e.position);
+        return;
+    }
     float best=21.f;
     if(activeTab==2) {
         for(int i=0;i<LoveEQAudioProcessor::graphicBandCount;++i) {
@@ -779,6 +835,7 @@ void LoveEQAudioProcessorEditor::mouseDown(const juce::MouseEvent& e) {
     if(draggingBand>=0)attachBand(draggingBand);
 }
 void LoveEQAudioProcessorEditor::mouseDrag(const juce::MouseEvent& e) {
+    if(sketchActive) {addSketchPoint(e.position);repaint();return;}
     const float db=juce::jlimit(-18.f,18.f,(graph.getCentreY()-e.position.y)*36.f/graph.getHeight());
     if(draggingGraphic>=0) {
         setParam(LoveEQAudioProcessor::graphicId(draggingGraphic),db);
@@ -787,8 +844,107 @@ void LoveEQAudioProcessorEditor::mouseDrag(const juce::MouseEvent& e) {
     }
     if(draggingBand<0)return;
     const float x=juce::jlimit(0.f,1.f,(e.position.x-graph.getX())/graph.getWidth());
-    setParam(LoveEQAudioProcessor::bandId(draggingBand,"hz"),20.f*std::pow(1000.f,x));
+    float hz=20.f*std::pow(1000.f,x);
+    if(noteGrid && e.mods.isAltDown())hz=loveeq::curvelab::noteFrequency(hz);
+    setParam(LoveEQAudioProcessor::bandId(draggingBand,"hz"),hz);
     setParam(LoveEQAudioProcessor::bandId(draggingBand,"gain"),db);
+    repaint();
+}
+void LoveEQAudioProcessorEditor::addSketchPoint(const juce::Point<float>& position) {
+    if(!graph.isEmpty()) {
+        loveeq::curvelab::SketchPoint point;
+        point.position=juce::jlimit(0.0,1.0,((double)position.x-graph.getX())/graph.getWidth());
+        point.gain=juce::jlimit(-18.0,18.0,((double)graph.getCentreY()-position.y)*36.0/graph.getHeight());
+        if(!sketchPoints.empty() && std::abs(sketchPoints.back().position-point.position)<0.005)
+            sketchPoints.back()=point;
+        else if(sketchPoints.size()<400)sketchPoints.push_back(point);
+    }
+}
+void LoveEQAudioProcessorEditor::applySketch() {
+    const auto fitted=loveeq::curvelab::fitSketch(sketchPoints,
+        juce::jmax(8000.0,processor.getSampleRate()));
+    bool hasBand=false;
+    for(const auto& band:fitted)hasBand=hasBand||band.enabled;
+    if(!hasBand)return;
+    processor.undoManager.beginNewTransaction(tr(u8"Courbe dessinée","Drawn EQ curve"));
+    for(int i=0;i<LoveEQAudioProcessor::bandCount;++i) {
+        const auto id=[i](const juce::String& suffix){return LoveEQAudioProcessor::bandId(i,suffix);};
+        const auto& band=fitted[(size_t)i];
+        setParam(id("enabled"),band.enabled?1.f:0.f);
+        if(!band.enabled)continue;
+        setParam(id("type"),0.f);
+        setParam(id("solo"),0.f);
+        setParam(id("dynamic"),0.f);
+        setParam(id("channel"),0.f);
+        setParam(id("hz"),band.hz);
+        setParam(id("gain"),band.gain);
+        setParam(id("q"),band.q);
+    }
+    processor.undoManager.beginNewTransaction();
+    attachBand(0);
+    selectTab(0);
+    repaint();
+}
+void LoveEQAudioProcessorEditor::grabSpectrumPeak() {
+    if(activeTab==2)selectTab(0);
+    if(!freezeSpectrum)updateFFT(true,preSpectrum);
+    const auto peak=loveeq::curvelab::locateSpectrumPeak(preSpectrum.data(),
+         (int)preSpectrum.size(),juce::jmax(8000.0,processor.getSampleRate()));
+    if(!peak.valid) {
+        grabButton.setTooltip(tr(u8"Aucune résonance suffisamment marquée détectée",
+                                 "No sufficiently strong spectral peak detected"));
+        return;
+    }
+    processor.undoManager.beginNewTransaction(tr(u8"Capturer une résonance","Capture spectral peak"));
+    const auto id=[this](const juce::String& suffix){
+        return LoveEQAudioProcessor::bandId(selectedBand,suffix);
+    };
+    setParam(id("enabled"),1.f);
+    setParam(id("type"),0.f);
+    setParam(id("hz"),peak.hz);
+    setParam(id("q"),5.0f);
+    setParam(id("gain"),0.f); // Safe: never cut or boost automatically.
+    processor.undoManager.beginNewTransaction();
+    attachBand(selectedBand);
+    grabButton.setTooltip(tr(u8"Résonance positionnée : ajustez ensuite le gain",
+                             "Peak positioned: adjust gain as needed"));
+    repaint();
+}
+void LoveEQAudioProcessorEditor::mouseUp(const juce::MouseEvent& e) {
+    if(!sketchActive)return;
+    addSketchPoint(e.position);
+    sketchActive=false;
+    applySketch();
+    sketchPoints.clear();
+    sketchMode=false;
+    sketchButton.setToggleState(false,juce::dontSendNotification);
+    repaint();
+}
+void LoveEQAudioProcessorEditor::mouseDoubleClick(const juce::MouseEvent& e) {
+    if(sketchMode || activeTab==2 || !graph.contains(e.getPosition()))return;
+    int target=-1;
+    for(int i=0;i<LoveEQAudioProcessor::bandCount;++i) {
+        const auto* enabled=processor.parameters.getRawParameterValue(
+            LoveEQAudioProcessor::bandId(i,"enabled"));
+        if(enabled && enabled->load()<0.5f){target=i;break;}
+    }
+    if(target<0)target=selectedBand;
+    const auto id=[target](const juce::String& suffix){
+        return LoveEQAudioProcessor::bandId(target,suffix);
+    };
+    float hz=(float)loveeq::curvelab::hzFromPosition(
+        ((double)e.position.x-graph.getX())/graph.getWidth());
+    if(noteGrid && e.mods.isAltDown())hz=loveeq::curvelab::noteFrequency(hz);
+    const float db=juce::jlimit(-18.f,18.f,
+        (graph.getCentreY()-e.position.y)*36.f/graph.getHeight());
+    processor.undoManager.beginNewTransaction(tr(u8"Ajouter une bande","Add EQ band"));
+    setParam(id("enabled"),1.f);
+    setParam(id("type"),0.f);
+    setParam(id("hz"),hz);
+    setParam(id("gain"),db);
+    setParam(id("q"),1.f);
+    processor.undoManager.beginNewTransaction();
+    attachBand(target);
     repaint();
 }
 void LoveEQAudioProcessorEditor::updateFFT(bool before,std::array<float,1025>& out){

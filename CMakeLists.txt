@@ -24,6 +24,7 @@ juce_add_plugin(LoveEQ
 juce_generate_juce_header(LoveEQ)
 target_sources(LoveEQ PRIVATE
     Source/EqCore.h
+    Source/CurveLab.h
     Source/FactoryPresets.h
     Source/PresetBrowser.h
     Source/UserPresetLibrary.h
@@ -59,3 +60,9 @@ add_test(NAME loveeq_graphic COMMAND loveeq_graphic_test)
 add_executable(loveeq_utf8_test tests/utf8_test.cpp)
 target_compile_features(loveeq_utf8_test PRIVATE cxx_std_17)
 add_test(NAME loveeq_utf8 COMMAND loveeq_utf8_test)
+
+# Independent musical sketch / peak detection tests.
+add_executable(loveeq_curve_lab_test tests/curvelab_test.cpp)
+target_compile_features(loveeq_curve_lab_test PRIVATE cxx_std_17)
+target_include_directories(loveeq_curve_lab_test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/Source)
+add_test(NAME loveeq_curve_lab COMMAND loveeq_curve_lab_test)

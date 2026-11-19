@@ -22,6 +22,7 @@ jobs:
           c++ -std=c++17 -O2 -Wall -Wextra -Werror -pedantic -I Source tests/presets_test.cpp -o build-core/presets_test
           c++ -std=c++17 -O2 -Wall -Wextra -Werror -pedantic -I Source tests/graphic_test.cpp -o build-core/graphic_test
           c++ -std=c++17 -O2 -Wall -Wextra -Werror -pedantic tests/utf8_test.cpp -o build-core/utf8_test
+          c++ -std=c++17 -O2 -Wall -Wextra -Werror -pedantic -I Source tests/curvelab_test.cpp -o build-core/curvelab_test
       - name: Test DSP and all factory presets
         shell: bash
         run: |
@@ -29,6 +30,7 @@ jobs:
           ./build-core/presets_test
           ./build-core/graphic_test
           ./build-core/utf8_test
+          ./build-core/curvelab_test
 
   macos-arm64:
     name: AU / VST3 / Standalone - Apple Silicon
@@ -50,7 +52,7 @@ jobs:
         run: cmake --build build --config Release --target LoveEQ_All --parallel 3
       - name: Test EQ core and factory presets
         run: |
-          cmake --build build --config Release --target loveeq_core_test loveeq_presets_test loveeq_graphic_test loveeq_utf8_test
+          cmake --build build --config Release --target loveeq_core_test loveeq_presets_test loveeq_graphic_test loveeq_utf8_test loveeq_curve_lab_test
           ctest --test-dir build -C Release --output-on-failure
       - name: Package unsigned test builds
         shell: bash
