@@ -37,7 +37,7 @@ LoveEQAudioProcessorEditor::LoveEQAudioProcessorEditor(LoveEQAudioProcessor& p)
     for(int i=0;i<8;++i) {
         auto& b=bandButtons[(size_t)i];
         b.setButtonText("");
-        b.setTooltip("Selectionner la bande " + juce::String(i+1));
+        b.setTooltip("S\u00E9lectionner la bande " + juce::String(i+1));
         b.setColour(juce::TextButton::buttonColourId, juce::Colours::transparentBlack);
         b.setColour(juce::TextButton::buttonOnColourId, juce::Colours::transparentBlack);
         b.setColour(juce::TextButton::textColourOffId,juce::Colour(bandColours[(size_t)i]));
@@ -55,7 +55,7 @@ LoveEQAudioProcessorEditor::LoveEQAudioProcessorEditor(LoveEQAudioProcessor& p)
     tabParam.onClick=[this]{selectTab(0);};
     tabDynamic.onClick=[this]{selectTab(1);};
     tabGraphic.setEnabled(false);
-    tabGraphic.setTooltip("Egaliseur graphique en developpement - audio non simule");
+    tabGraphic.setTooltip("\u00C9galiseur graphique en d\u00E9veloppement - aucun traitement simul\u00E9");
     holdButton.setClickingTogglesState(true);
     holdButton.onClick=[this]{holdSpectrum=holdButton.getToggleState();
         if(!holdSpectrum){heldPre.fill(-96.f);heldPost.fill(-96.f);}
@@ -241,7 +241,7 @@ void LoveEQAudioProcessorEditor::paint(juce::Graphics& g) {
     g.setColour(juce::Colour(0xff84939d));
     g.drawText("0 sample",w-132,100,87,19,juce::Justification::centredLeft);
     g.drawText("COURBE : STEREO",378,99,175,26,juce::Justification::centredLeft);
-    g.drawText("ECHELLE : +/- 18 dB",563,99,195,26,juce::Justification::centredLeft);
+    g.drawText("\u00C9CHELLE : +/- 18 dB",563,99,195,26,juce::Justification::centredLeft);
 
     // Single analyzer panel with a dedicated toolbar and a narrow meter strip.
     g.setColour(juce::Colour(0xff10171d));
@@ -404,7 +404,7 @@ void LoveEQAudioProcessorEditor::paint(juce::Graphics& g) {
         g.drawText(labels[(size_t)i],x0+xx[(size_t)i],bottomPanel.getY()+39,
                    (i==0?84:82),17,juce::Justification::centredLeft);
     for(int i=0;i<4;++i) {
-        const char* names[]={"SEUIL","RANGE","ATTAQUE","RELEASE"};
+        const char* names[]={"SEUIL","RANGE","ATTAQUE","REL\u00C2CHE"};
         g.drawText(names[i],split1+12+i*67,bottomPanel.getY()+39,64,17,juce::Justification::centredLeft);
     }
     g.drawText("Correspondance spectrale",split2+12,bottomPanel.getY()+48,202,18,juce::Justification::centredLeft);
