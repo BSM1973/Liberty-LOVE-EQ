@@ -251,7 +251,7 @@ void LoveEQAudioProcessorEditor::paint(juce::Graphics& g) {
     g.drawHorizontalLine(188,(float)spectrumPanel.getX(),(float)spectrumPanel.getRight());
     g.setColour(juce::Colour(0xff778994));
     g.setFont(juce::Font(juce::FontOptions(10.f,juce::Font::bold)));
-    g.drawText("SPECTRE",42,156,87,18,juce::Justification::centredLeft);
+    g.drawText("SPECTRE",42,156,73,18,juce::Justification::centredLeft);
     g.drawText("R\u00C9PONSE - dB",graph.getX(),190,154,16,juce::Justification::centredLeft);
     g.drawText("ANALYSEUR FFT 2048",graph.getRight()-196,190,189,16,juce::Justification::centredRight);
 
@@ -434,10 +434,10 @@ void LoveEQAudioProcessorEditor::resized() {
     resetButton.setBounds(w-109,96,86,30);
 
     spectrumPanel={24,145,w-48,344};
-    preButton.setBounds(122,155,49,25);
-    postButton.setBounds(175,155,49,25);
-    holdButton.setBounds(239,155,103,25);
-    freezeButton.setBounds(346,155,58,25);
+    preButton.setBounds(130,155,49,25);
+    postButton.setBounds(183,155,49,25);
+    holdButton.setBounds(245,155,103,25);
+    freezeButton.setBounds(352,155,58,25);
     graph={65,210,w-219,239};
     meterBox={w-132,192,101,272};
     bandRow={24,500,w-48,77};
@@ -466,7 +466,7 @@ void LoveEQAudioProcessorEditor::resized() {
     attack.setBounds(dynX+134,baseY-1,65,42);
     release.setBounds(dynX+201,baseY-1,65,42);
     input.setBounds(footerPanel.getX()+57,footerPanel.getY()+3,132,30);
-    output.setBounds(footerPanel.getX()+266,footerPanel.getY()+3,132,30);
+    output.setBounds(footerPanel.getX()+272,footerPanel.getY()+3,132,30);
     // Numeric fields below faders leave enough horizontal space for each label.
     for(auto* slider:{&frequency,&gain,&q,&threshold,&range,&attack,&release})
         slider->setTextBoxStyle(juce::Slider::TextBoxBelow,false,61,18);
