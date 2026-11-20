@@ -63,7 +63,7 @@ public:
                 break;
             case Phase::Body:
                 if(newOnset)startAttack();
-                else if(fast<std::max(threshold*0.78,(float)(slow*0.56)) &&
+                else if(fast<std::max((double)threshold*0.78,slow*0.56) &&
                         slow>threshold*0.30) {
                     age=0;
                     phase=Phase::Tail;
