@@ -40,6 +40,11 @@ APVTS::ParameterLayout LoveEQAudioProcessor::makeParameterLayout() {
     // TIME LENS: 3 independent bell filters, disabled until explicitly enabled.
     p.add(boolean("time_lens_enabled","Time Lens Active",false));
     p.add(boolean("intent_enabled","LOVE INTENT Preview Active",false));
+    p.add(boolean("match_active","EQ MATCH Active",false));
+    p.add(fl("match_amount","EQ MATCH Strength",0.f,100.f,75.f,1.f));
+    for(int i=0;i<loveeq::match::bands;++i)
+        p.add(fl("match_gain_"+juce::String(i+1),"EQ MATCH Gain "+juce::String(i+1),
+            -6.f,6.f,0.f,0.1f));
     p.add(fl("intent_amount","LOVE INTENT Intensity",0.f,100.f,75.f,1.f));
     const std::array<float,3> startHz {245.f,2300.f,5100.f};
     for(int i=0;i<loveeq::intent::bandCount;++i) {
@@ -103,6 +108,11 @@ LoveEQAudioProcessor::LoveEQAudioProcessor()
     sidechainParam=parameters.getRawParameterValue("external_sc");
     eqModeParam=parameters.getRawParameterValue("eq_mode");
     intentActiveParam=parameters.getRawParameterValue("intent_enabled");
+    matchActiveParam=parameters.getRawParameterValue("match_active");
+    matchAmountParam=parameters.getRawParameterValue("match_amount");
+    for(int i=0;i<loveeq::match::bands;++i)
+        matchGainParams[(size_t)i]=parameters.getRawParameterValue(
+            "match_gain_"+juce::String(i+1));
     intentAmountParam=parameters.getRawParameterValue("intent_amount");
     for(int i=0;i<loveeq::intent::bandCount;++i){
         const auto id="intent_"+juce::String(i+1)+"_";
@@ -252,6 +262,11 @@ void LoveEQAudioProcessor::prepareToPlay(double sampleRate,int) {
         const auto& par=intentParams[(size_t)i];
         intentRuntime[(size_t)i].prepare(rate,value(par.hz),value(par.gain),value(par.q));
     }
+    for(auto& b:matchRuntime)b.prepare(rate);
+    matchWet.reset(rate,0.03);
+    matchWet.setCurrentAndTargetValue(value(matchActiveParam)>0.5f?1.f:0.f);
+    matchDose.reset(rate,0.03);
+    matchDose.setCurrentAndTargetValue(juce::jlimit(0.f,1.f,value(matchAmountParam)*0.01f));
     intentWet.reset(rate,0.03);
     intentWet.setCurrentAndTargetValue(value(intentActiveParam)>0.5f?1.f:0.f);
     intentDose.reset(rate,0.03);
@@ -291,6 +306,10 @@ void LoveEQAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,juce::M
         rt.smoothedQ.setTargetValue(s.q);
         rt.wet.setTargetValue((s.enabled && (!anySolo || s.solo))?1.f:0.f);
     }
+    matchWet.setTargetValue(value(matchActiveParam)>0.5f?1.f:0.f);
+    matchDose.setTargetValue(juce::jlimit(0.f,1.f,value(matchAmountParam)*0.01f));
+    for(int i=0;i<loveeq::match::bands;++i)
+        matchRuntime[(size_t)i].gain.setTargetValue(value(matchGainParams[(size_t)i]));
     intentWet.setTargetValue(value(intentActiveParam)>0.5f?1.f:0.f);
     intentDose.setTargetValue(juce::jlimit(0.f,1.f,value(intentAmountParam)*0.01f));
     for(int i=0;i<loveeq::intent::bandCount;++i) {
@@ -449,6 +468,25 @@ void LoveEQAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,juce::M
         }
         l=intentDryL+intentMix*intentDeltaL;
         if(right)r=intentDryR+intentMix*intentDeltaR;
+        // EQ MATCH is a real, automatable 6-filter correction with
+        // bounded gain and smoothed A/B. The original EQ remains intact.
+        const float matchMix=matchWet.getNextValue()*matchDose.getNextValue();
+        const float matchDryL=l,matchDryR=r;
+        float matchDeltaL=0.f,matchDeltaR=0.f;
+        for(int mi=0;mi<loveeq::match::bands;++mi) {
+            auto& band=matchRuntime[(size_t)mi];
+            const double db=band.gain.getNextValue();
+            if(--band.countdown<=0) {
+                const auto coeff=loveeq::design(
+                    loveeq::Type::Bell,rate,loveeq::match::centers[(size_t)mi],db,0.85);
+                for(auto& c:band.channels)c.set(coeff);
+                band.countdown=32;
+            }
+            matchDeltaL+=band.channels[0].process(matchDryL)-matchDryL;
+            if(right)matchDeltaR+=band.channels[1].process(matchDryR)-matchDryR;
+        }
+        l=matchDryL+matchMix*matchDeltaL;
+        if(right)r=matchDryR+matchMix*matchDeltaR;
         const float outGainNow=outputGain.getNextValue();
         const float mix=globalWet.getNextValue();
         const float finalL=origL+mix*(l*outGainNow-origL);
@@ -497,6 +535,7 @@ void LoveEQAudioProcessor::loadFactoryPreset(size_t index) {
     set("relationship_active",0.f);
     set("time_lens_enabled",0.f);
     set("intent_enabled",0.f);
+    set("match_active",0.f);
     for(int i=0;i<bandCount;++i) {
         const auto& b=data[(size_t)i];
         const auto id=[i](const juce::String& s){return bandId(i,s);};
@@ -518,6 +557,10 @@ void LoveEQAudioProcessor::resetToFlat() {
     set("relationship_active",0.f);
     set("time_lens_enabled",0.f);
     set("intent_enabled",0.f);
+    set("match_active",0.f);
+    set("match_amount",75.f);
+    for(int i=0;i<loveeq::match::bands;++i)
+        set("match_gain_"+juce::String(i+1),0.f);
     set("intent_amount",75.f);
     for(int i=0;i<loveeq::intent::bandCount;++i) {
         const auto id="intent_"+juce::String(i+1)+"_";

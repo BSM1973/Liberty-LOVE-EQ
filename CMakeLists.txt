@@ -29,6 +29,7 @@ target_sources(LoveEQ PRIVATE
     Source/RelationshipEQ.h
     Source/TimeLensCore.h
     Source/IntentCore.h
+    Source/MatchCore.h
     Source/FactoryPresets.h
     Source/PresetBrowser.h
     Source/UserPresetLibrary.h
@@ -94,3 +95,9 @@ add_executable(loveeq_intent_test tests/intent_test.cpp)
 target_compile_features(loveeq_intent_test PRIVATE cxx_std_17)
 target_include_directories(loveeq_intent_test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/Source)
 add_test(NAME loveeq_intent COMMAND loveeq_intent_test)
+
+# EQ MATCH spectral capture, loudness-independent comparison and safe bounds.
+add_executable(loveeq_match_test tests/match_test.cpp)
+target_compile_features(loveeq_match_test PRIVATE cxx_std_17)
+target_include_directories(loveeq_match_test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/Source)
+add_test(NAME loveeq_match COMMAND loveeq_match_test)

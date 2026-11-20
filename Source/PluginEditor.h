@@ -42,8 +42,15 @@ private:
     private:
         bool redo;
     };
+    class BandTileButton final : public juce::TextButton {
+    public:
+        LoveEQAudioProcessor* processor=nullptr;
+        int band=0;
+        bool selected=false, english=false;
+        void paintButton(juce::Graphics&,bool isMouseOver,bool isButtonDown) override;
+    };
     LoveEQAudioProcessor& processor;
-    std::array<juce::TextButton,8> bandButtons;
+    std::array<BandTileButton,8> bandButtons;
     juce::TextButton tabParam {u8"PARAMÉTRIQUE"}, tabDynamic {"DYNAMIQUE"}, tabGraphic {"GRAPHIQUE"};
     juce::TextButton holdButton {"MAINTIEN PIC"}, freezeButton {"FIGER"};
     juce::TextButton dnaButton {"HARMONIC DNA"}, dnaFocusButton {"CIBLER"}, dnaCutButton {"ATTÉNUER"};
@@ -103,6 +110,33 @@ private:
     void captureIntentBaseline();
     void restoreIntentBaseline();
     void closeIntentView();
+    // EQ MATCH: capture two real signals, compare tonality, optionally apply.
+    juce::TextButton matchModeButton {"EQ MATCH"},matchReferenceButton {"CAPTURER RÉF"},
+        matchSourceButton {"CAPTURER SOURCE"},matchProposeButton {"PROPOSER"},
+        matchPreviewButton {"B ÉCOUTER"},matchCommitButton {"CONSERVER"},
+        matchCancelButton {"ANNULER"};
+    juce::Slider matchAmountSlider;
+    std::unique_ptr<SliderAttachment> matchAmountAttachment;
+    std::array<juce::Slider,loveeq::match::bands> matchGainSliders;
+    std::array<std::unique_ptr<SliderAttachment>,loveeq::match::bands> matchGainAttachments;
+    loveeq::match::Profile matchReference {},matchSource {};
+    loveeq::match::Curve matchCurve {};
+    bool matchMode=false,matchPreviewing=false,matchBaselineValid=false;
+    std::array<float,loveeq::match::bands+2> matchBaseline {};
+    int matchCaptureMode=0,matchFramesRemaining=0;
+    juce::String matchStatus;
+    void initializeMatch();
+    void updateMatchVisibility();
+    void updateMatchLanguage();
+    void beginMatchCapture(int);
+    void runMatchCaptureFrame();
+    void proposeMatch();
+    void previewMatch();
+    void commitMatch();
+    void cancelMatch();
+    void closeMatchView();
+    void rememberMatchBaseline();
+    void restoreMatchBaseline();
     juce::TextEditor presetSearch;
     juce::ComboBox languageBox;
     juce::TextButton browserButton {"PRESETS"},peakResetButton {"PEAK RESET"};

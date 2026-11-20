@@ -23,7 +23,7 @@ for path in sources:
 ui = (root / "Source" / "PluginEditor.cpp").read_text("utf-8")
 header = (root / "Source" / "PluginEditor.h").read_text("utf-8")
 for token in ('"LOVE EQ"', '"by Liberty Music Software"', 'setResizable(false,false)',
-              'spectrumPanel=', 'bottomPanel=', 'footerPanel=', 'tabGraphic.onClick=[this,closeLens]{closeIntentView();closeLens();selectTab(2)', 'languageBox.setBounds(', 'browserButton.setBounds(', 'peakResetButton.setBounds('):
+              'spectrumPanel=', 'bottomPanel=', 'footerPanel=', 'tabGraphic.onClick=[this,closeLens]{closeMatchView();closeIntentView();closeLens();selectTab(2)', 'languageBox.setBounds(', 'browserButton.setBounds(', 'peakResetButton.setBounds('):
     if token not in ui:
         bad.append(f"UI contract missing: {token}")
 for token in ("juce::TextButton tabParam", "juce::TextButton holdButton", "juce::ComboBox languageBox", "std::unique_ptr<LoveEQPresetBrowser>"):
@@ -106,7 +106,7 @@ for token in ('"relationship_role"','"relationship_priority"','"relationship_gro
 # Opening TIME LENS must not silently switch the parametric/graphic DSP.
 if "if(requested && activeTab==2)selectTab(0)" in ui:
     bad.append("TIME LENS view must not change the active EQ engine")
-if 'for(auto& slider:graphicSliders)slider.setVisible(graphic && !timeLensMode && !intentMode)' not in ui:
+if 'for(auto& slider:graphicSliders)slider.setVisible(graphic && !timeLensMode && !intentMode && !matchMode)' not in ui:
     bad.append("Graphic sliders must hide when TIME LENS takes over their panel")
 # TIME LENS: editable three-stage processing and a dedicated non-overlapping view.
 for name in ("timeLensModeButton.setBounds(", "timeLensEnableButton.setBounds(",
@@ -185,6 +185,58 @@ for key,(x,y,w,h) in intent_rectangles.items():
     for other,(xx,yy,ww,hh) in intent_rectangles.items():
         if key<other and min(x+w,xx+ww)>max(x,xx) and min(y+h,yy+hh)>max(y,yy):
             bad.append(f"LOVE INTENT control overlap: {key}, {other}")
+
+
+# The empty-tile regression: drawing labels in the editor parent is not enough,
+# because an opaque child TextButton covers those labels.
+if "class BandTileButton final : public juce::TextButton" not in header:
+    bad.append("The eight bands need their own tile renderer")
+for field in ('BandTileButton::paintButton(', 'g.drawFittedText(frequency,',
+              'g.drawFittedText(gainText,', 'b.processor=&processor;',
+              'b.band=i;', 'tile.selected=i==selectedBand;'):
+    if field not in ui:
+        bad.append(f"Band tile child renderer missing: {field}")
+# EQ MATCH must exist as real source/reference capture and 6-band DSP.
+for field in ('matchModeButton.setBounds(', 'matchReferenceButton.setBounds(',
+              'matchSourceButton.setBounds(', 'matchProposeButton.setBounds(',
+              'matchPreviewButton.setBounds(', 'matchCommitButton.setBounds(',
+              'matchCancelButton.setBounds(', 'matchAmountSlider.setBounds(',
+              'matchGainSliders[(size_t)i].setBounds(',
+              'void LoveEQAudioProcessorEditor::runMatchCaptureFrame(',
+              'void LoveEQAudioProcessorEditor::previewMatch(',
+              'loveeq::match::calculate(', 'if(matchBaselineValid)restoreMatchBaseline();'):
+    if field not in ui:
+        bad.append(f"EQ MATCH missing: {field}")
+for field in ('"match_active"','"match_amount"','matchRuntime[(size_t)mi]',
+              'matchWet.getNextValue()', 'matchDose.getNextValue()',
+              'matchDeltaL+=band.channels[0].process(',
+              'set("match_active",0.f)'):
+    if field not in processor:
+        bad.append(f"EQ MATCH real DSP missing: {field}")
+# Across the displayed mode-specific controls, no elements may overlap.
+match_rectangles={"mode":(364,96,133,30),"ref":(36,510,155,31),
+                  "source":(198,510,157,31),"suggest":(363,510,107,31),
+                  "preview":(478,510,120,31),"keep":(606,510,112,31),
+                  "cancel":(726,510,108,31),"intensity":(851,509,260,34)}
+for i in range(6):
+    match_rectangles[f"band{i}"]=(43+i*183,639,155,62)
+for key,(x,y,w,h) in match_rectangles.items():
+    if x<24 or y<90 or x+w>1136 or y+h>709:
+        bad.append(f"EQ MATCH out of frame: {key}")
+    for other,(xx,yy,ww,hh) in match_rectangles.items():
+        if key<other and min(x+w,xx+ww)>max(x,xx) and min(y+h,yy+hh)>max(y,yy):
+            bad.append(f"EQ MATCH overlapping controls: {key}/{other}")
+# Keep top-level mode buttons from crowding each other.
+headerModes={"eq_match":(364,96,133,30),"intent":(852,96,178,30),
+             "reset":(1044,96,92,30),"graphic":(243,97,107,29),
+             "time":(994,155,141,25),"relation":(840,155,146,25)}
+def match_collide(a,b):
+    x,y,w,h=a; xx,yy,ww,hh=b
+    return min(x+w,xx+ww)>max(x,xx) and min(y+h,yy+hh)>max(y,yy)
+for name,a in headerModes.items():
+    for other,b in headerModes.items():
+        if name<other and match_collide(a,b):
+            bad.append(f"Plugin mode header overlap: {name}/{other}")
 
 # Fail CI if the most frequent 13-inch layout collision regressions reappear.
 layout_contract={

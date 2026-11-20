@@ -6,6 +6,7 @@
 #include "RelationshipEQ.h"
 #include "TimeLensCore.h"
 #include "IntentCore.h"
+#include "MatchCore.h"
 
 class LoveEQAudioProcessor final : public juce::AudioProcessor {
 public:
@@ -154,6 +155,20 @@ private:
     std::array<IntentParameters,loveeq::intent::bandCount> intentParams {};
     std::atomic<float>* intentActiveParam{},*intentAmountParam{};
     juce::SmoothedValue<float> intentWet,intentDose;
+    struct MatchBand {
+        std::array<loveeq::Biquad,2> channels {};
+        juce::SmoothedValue<double> gain;
+        int countdown=0;
+        void prepare(double sr) {
+            for(auto& c:channels)c.reset();
+            gain.reset(sr,0.022);gain.setCurrentAndTargetValue(0.);
+            countdown=0;
+        }
+    };
+    std::array<MatchBand,loveeq::match::bands> matchRuntime {};
+    std::array<std::atomic<float>*,loveeq::match::bands> matchGainParams {};
+    std::atomic<float>* matchActiveParam{},*matchAmountParam{};
+    juce::SmoothedValue<float> matchWet,matchDose;
     std::array<GraphicRuntime,graphicBandCount> graphicRuntime {};
     std::array<std::atomic<float>*,graphicBandCount> graphicParams {};
     std::atomic<float>* eqModeParam {};
