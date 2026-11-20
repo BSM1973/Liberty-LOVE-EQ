@@ -106,7 +106,7 @@ for token in ('"relationship_role"','"relationship_priority"','"relationship_gro
 # Opening TIME LENS must not silently switch the parametric/graphic DSP.
 if "if(requested && activeTab==2)selectTab(0)" in ui:
     bad.append("TIME LENS view must not change the active EQ engine")
-if 'for(auto& slider:graphicSliders)slider.setVisible(graphic && !timeLensMode)' not in ui:
+if 'for(auto& slider:graphicSliders)slider.setVisible(graphic && !timeLensMode && !intentMode)' not in ui:
     bad.append("Graphic sliders must hide when TIME LENS takes over their panel")
 # TIME LENS: editable three-stage processing and a dedicated non-overlapping view.
 for name in ("timeLensModeButton.setBounds(", "timeLensEnableButton.setBounds(",
