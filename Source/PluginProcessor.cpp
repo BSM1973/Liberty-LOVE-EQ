@@ -39,6 +39,16 @@ APVTS::ParameterLayout LoveEQAudioProcessor::makeParameterLayout() {
     p.add(boolean("relationship_active","Relationship Dynamic Active",false));
     // TIME LENS: 3 independent bell filters, disabled until explicitly enabled.
     p.add(boolean("time_lens_enabled","Time Lens Active",false));
+    p.add(boolean("intent_enabled","LOVE INTENT Preview Active",false));
+    p.add(fl("intent_amount","LOVE INTENT Intensity",0.f,100.f,75.f,1.f));
+    const std::array<float,3> startHz {245.f,2300.f,5100.f};
+    for(int i=0;i<loveeq::intent::bandCount;++i) {
+        const juce::String id="intent_"+juce::String(i+1)+"_";
+        const juce::String name="LOVE INTENT Band "+juce::String(i+1)+" ";
+        p.add(fl(id+"hz",name+"Frequency",30.f,18000.f,startHz[(size_t)i]));
+        p.add(fl(id+"gain",name+"Gain",-6.f,6.f,0.f,0.1f));
+        p.add(fl(id+"q",name+"Q",0.35f,8.f,1.f));
+    }
     p.add(fl("time_lens_attack_ms","Time Lens Attack Duration",5.f,150.f,35.f,1.f));
     p.add(fl("time_lens_tail_ms","Time Lens Tail Duration",60.f,1200.f,400.f,1.f));
     p.add(fl("time_lens_threshold_db","Time Lens Trigger Threshold",-65.f,-12.f,-38.f,1.f));
@@ -92,6 +102,15 @@ LoveEQAudioProcessor::LoveEQAudioProcessor()
     bypassParam=parameters.getRawParameterValue("bypass");
     sidechainParam=parameters.getRawParameterValue("external_sc");
     eqModeParam=parameters.getRawParameterValue("eq_mode");
+    intentActiveParam=parameters.getRawParameterValue("intent_enabled");
+    intentAmountParam=parameters.getRawParameterValue("intent_amount");
+    for(int i=0;i<loveeq::intent::bandCount;++i){
+        const auto id="intent_"+juce::String(i+1)+"_";
+        auto& stage=intentParams[(size_t)i];
+        stage.hz=parameters.getRawParameterValue(id+"hz");
+        stage.gain=parameters.getRawParameterValue(id+"gain");
+        stage.q=parameters.getRawParameterValue(id+"q");
+    }
     timeEnabledParam=parameters.getRawParameterValue("time_lens_enabled");
     timeAttackParam=parameters.getRawParameterValue("time_lens_attack_ms");
     timeTailParam=parameters.getRawParameterValue("time_lens_tail_ms");
@@ -229,6 +248,14 @@ void LoveEQAudioProcessor::prepareToPlay(double sampleRate,int) {
         const auto& params=timeParams[(size_t)i];
         timeRuntime[(size_t)i].reset(rate,value(params.hz),value(params.gain),value(params.q));
     }
+    for(int i=0;i<loveeq::intent::bandCount;++i){
+        const auto& par=intentParams[(size_t)i];
+        intentRuntime[(size_t)i].prepare(rate,value(par.hz),value(par.gain),value(par.q));
+    }
+    intentWet.reset(rate,0.03);
+    intentWet.setCurrentAndTargetValue(value(intentActiveParam)>0.5f?1.f:0.f);
+    intentDose.reset(rate,0.03);
+    intentDose.setCurrentAndTargetValue(juce::jlimit(0.f,1.f,value(intentAmountParam)*0.01f));
     timeWet.reset(rate,0.025);
     timeWet.setCurrentAndTargetValue(value(timeEnabledParam)>0.5f?1.f:0.f);
     timeLensPhase.store(0,std::memory_order_relaxed);
@@ -263,6 +290,15 @@ void LoveEQAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,juce::M
         rt.smoothedGain.setTargetValue(s.gain);
         rt.smoothedQ.setTargetValue(s.q);
         rt.wet.setTargetValue((s.enabled && (!anySolo || s.solo))?1.f:0.f);
+    }
+    intentWet.setTargetValue(value(intentActiveParam)>0.5f?1.f:0.f);
+    intentDose.setTargetValue(juce::jlimit(0.f,1.f,value(intentAmountParam)*0.01f));
+    for(int i=0;i<loveeq::intent::bandCount;++i) {
+        const auto& par=intentParams[(size_t)i];
+        auto& stage=intentRuntime[(size_t)i];
+        stage.frequency.setTargetValue(value(par.hz));
+        stage.gain.setTargetValue(value(par.gain));
+        stage.q.setTargetValue(value(par.q));
     }
     timeDetector.configure(value(timeAttackParam),value(timeTailParam),
                            value(timeThresholdParam));
@@ -392,6 +428,27 @@ void LoveEQAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,juce::M
         }
         l=dryTimeL+correctionL;
         if(right)r=dryTimeR+correctionR;
+        // LOVE INTENT additive independent Bell bank. No existing EQ nodes
+        // are overwritten, and its own A/B is smoothly faded.
+        const float intentMix=intentWet.getNextValue()*intentDose.getNextValue();
+        const float intentDryL=l,intentDryR=r;
+        float intentDeltaL=0.f,intentDeltaR=0.f;
+        for(int i=0;i<loveeq::intent::bandCount;++i) {
+            auto& band=intentRuntime[(size_t)i];
+            const double frequency=band.frequency.getNextValue();
+            const double db=band.gain.getNextValue();
+            const double width=band.q.getNextValue();
+            if(--band.countdown<=0) {
+                const auto coefficients=loveeq::design(
+                    loveeq::Type::Bell,rate,frequency,db,width);
+                for(auto& c:band.channels)c.set(coefficients);
+                band.countdown=32;
+            }
+            intentDeltaL+=band.channels[0].process(intentDryL)-intentDryL;
+            if(right)intentDeltaR+=band.channels[1].process(intentDryR)-intentDryR;
+        }
+        l=intentDryL+intentMix*intentDeltaL;
+        if(right)r=intentDryR+intentMix*intentDeltaR;
         const float outGainNow=outputGain.getNextValue();
         const float mix=globalWet.getNextValue();
         const float finalL=origL+mix*(l*outGainNow-origL);
@@ -439,6 +496,7 @@ void LoveEQAudioProcessor::loadFactoryPreset(size_t index) {
     set("eq_mode",0.f);
     set("relationship_active",0.f);
     set("time_lens_enabled",0.f);
+    set("intent_enabled",0.f);
     for(int i=0;i<bandCount;++i) {
         const auto& b=data[(size_t)i];
         const auto id=[i](const juce::String& s){return bandId(i,s);};
@@ -459,6 +517,13 @@ void LoveEQAudioProcessor::resetToFlat() {
     set("eq_mode",0.f);
     set("relationship_active",0.f);
     set("time_lens_enabled",0.f);
+    set("intent_enabled",0.f);
+    set("intent_amount",75.f);
+    for(int i=0;i<loveeq::intent::bandCount;++i) {
+        const auto id="intent_"+juce::String(i+1)+"_";
+        set(id+"gain",0.f);
+        set(id+"q",1.f);
+    }
     set("time_lens_attack_ms",35.f);
     set("time_lens_tail_ms",400.f);
     set("time_lens_threshold_db",-38.f);

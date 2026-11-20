@@ -26,6 +26,7 @@ jobs:
           c++ -std=c++17 -O2 -Wall -Wextra -Werror -pedantic -I Source tests/harmonic_dna_test.cpp -o build-core/harmonic_dna_test
           c++ -std=c++17 -O2 -Wall -Wextra -Werror -pedantic -I Source tests/relationship_test.cpp -o build-core/relationship_test
           c++ -std=c++17 -O2 -Wall -Wextra -Werror -pedantic -I Source tests/time_lens_test.cpp -o build-core/time_lens_test
+          c++ -std=c++17 -O2 -Wall -Wextra -Werror -pedantic -I Source tests/intent_test.cpp -o build-core/intent_test
       - name: Test DSP and all factory presets
         shell: bash
         run: |
@@ -37,6 +38,7 @@ jobs:
           ./build-core/harmonic_dna_test
           ./build-core/relationship_test
           ./build-core/time_lens_test
+          ./build-core/intent_test
 
   macos-arm64:
     name: AU / VST3 / Standalone - Apple Silicon
@@ -58,7 +60,7 @@ jobs:
         run: cmake --build build --config Release --target LoveEQ_All --parallel 3
       - name: Test EQ core and factory presets
         run: |
-          cmake --build build --config Release --target loveeq_core_test loveeq_presets_test loveeq_graphic_test loveeq_utf8_test loveeq_curve_lab_test loveeq_harmonic_dna_test loveeq_relationship_test loveeq_time_lens_test
+          cmake --build build --config Release --target loveeq_core_test loveeq_presets_test loveeq_graphic_test loveeq_utf8_test loveeq_curve_lab_test loveeq_harmonic_dna_test loveeq_relationship_test loveeq_time_lens_test loveeq_intent_test
           ctest --test-dir build -C Release --output-on-failure
       - name: Package unsigned test builds
         shell: bash

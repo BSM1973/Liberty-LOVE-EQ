@@ -5,6 +5,7 @@
 #include "EqCore.h"
 #include "RelationshipEQ.h"
 #include "TimeLensCore.h"
+#include "IntentCore.h"
 
 class LoveEQAudioProcessor final : public juce::AudioProcessor {
 public:
@@ -132,6 +133,27 @@ private:
     std::atomic<float>* timeEnabledParam{},*timeAttackParam{},
                       *timeTailParam{},*timeThresholdParam{};
     juce::SmoothedValue<float> timeWet;
+    // LOVE INTENT uses three independent non-destructive, automatable Bell bands.
+    struct IntentBand {
+        std::array<loveeq::Biquad,2> channels {};
+        juce::SmoothedValue<double> frequency,gain,q;
+        int countdown=0;
+        void prepare(double sr,float hz,float db,float width) {
+            for(auto& c:channels)c.reset();
+            frequency.reset(sr,0.02);gain.reset(sr,0.02);q.reset(sr,0.02);
+            frequency.setCurrentAndTargetValue(hz);
+            gain.setCurrentAndTargetValue(db);
+            q.setCurrentAndTargetValue(width);
+            countdown=0;
+        }
+    };
+    std::array<IntentBand,loveeq::intent::bandCount> intentRuntime {};
+    struct IntentParameters {
+        std::atomic<float>* hz{};std::atomic<float>* gain{};std::atomic<float>* q{};
+    };
+    std::array<IntentParameters,loveeq::intent::bandCount> intentParams {};
+    std::atomic<float>* intentActiveParam{},*intentAmountParam{};
+    juce::SmoothedValue<float> intentWet,intentDose;
     std::array<GraphicRuntime,graphicBandCount> graphicRuntime {};
     std::array<std::atomic<float>*,graphicBandCount> graphicParams {};
     std::atomic<float>* eqModeParam {};

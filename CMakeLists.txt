@@ -28,6 +28,7 @@ target_sources(LoveEQ PRIVATE
     Source/HarmonicDNA.h
     Source/RelationshipEQ.h
     Source/TimeLensCore.h
+    Source/IntentCore.h
     Source/FactoryPresets.h
     Source/PresetBrowser.h
     Source/UserPresetLibrary.h
@@ -87,3 +88,9 @@ add_executable(loveeq_time_lens_test tests/time_lens_test.cpp)
 target_compile_features(loveeq_time_lens_test PRIVATE cxx_std_17)
 target_include_directories(loveeq_time_lens_test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/Source)
 add_test(NAME loveeq_time_lens COMMAND loveeq_time_lens_test)
+
+# LOVE INTENT: measured, deterministic, safe bounded musical suggestions.
+add_executable(loveeq_intent_test tests/intent_test.cpp)
+target_compile_features(loveeq_intent_test PRIVATE cxx_std_17)
+target_include_directories(loveeq_intent_test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/Source)
+add_test(NAME loveeq_intent COMMAND loveeq_intent_test)

@@ -23,7 +23,7 @@ for path in sources:
 ui = (root / "Source" / "PluginEditor.cpp").read_text("utf-8")
 header = (root / "Source" / "PluginEditor.h").read_text("utf-8")
 for token in ('"LOVE EQ"', '"by Liberty Music Software"', 'setResizable(false,false)',
-              'spectrumPanel=', 'bottomPanel=', 'footerPanel=', 'tabGraphic.onClick=[this,closeLens]{closeLens();selectTab(2)', 'languageBox.setBounds(', 'browserButton.setBounds(', 'peakResetButton.setBounds('):
+              'spectrumPanel=', 'bottomPanel=', 'footerPanel=', 'tabGraphic.onClick=[this,closeLens]{closeIntentView();closeLens();selectTab(2)', 'languageBox.setBounds(', 'browserButton.setBounds(', 'peakResetButton.setBounds('):
     if token not in ui:
         bad.append(f"UI contract missing: {token}")
 for token in ("juce::TextButton tabParam", "juce::TextButton holdButton", "juce::ComboBox languageBox", "std::unique_ptr<LoveEQPresetBrowser>"):
@@ -139,6 +139,52 @@ for name,(x,y,w,h) in lens_rectangles.items():
     for other,(ox,oy,ow,oh) in lens_rectangles.items():
         if name<other and min(x+w,ox+ow)>max(x,ox) and min(y+h,oy+oh)>max(y,oy):
             bad.append(f"TIME LENS collision: {name} / {other}")
+
+
+# LOVE INTENT requires real three-filter DSP, a measured-spectrum advisory
+# engine, independent A/B with full rollback, and a collision-free control row.
+for name in ("intentModeButton.setBounds(", "intentGoalBox.setBounds(",
+             "intentAnalyzeButton.setBounds(", "intentOriginalButton.setBounds(",
+             "intentPreviewButton.setBounds(", "intentCommitButton.setBounds(",
+             "intentCancelButton.setBounds(", "intentAmountSlider.setBounds(",
+             "intentVariantButtons[(size_t)j].setBounds(",
+             "intentFrequencySlider[(size_t)j].setBounds(",
+             "intentGainSlider[(size_t)j].setBounds(",
+             "intentQSlider[(size_t)j].setBounds(",
+             "void LoveEQAudioProcessorEditor::measureIntent(",
+             "void LoveEQAudioProcessorEditor::listenIntent(",
+             "void LoveEQAudioProcessorEditor::restoreIntentBaseline(",
+             "void LoveEQAudioProcessorEditor::closeIntentView("):
+    if name not in ui:
+        bad.append(f"LOVE INTENT UI feature missing: {name}")
+if 'if(intentOriginalValid)restoreIntentBaseline();setLookAndFeel(nullptr);' not in ui:
+    bad.append("LOVE INTENT must restore an uncommitted audition when the editor closes")
+for name in ('"intent_enabled"', '"intent_amount"', "intentRuntime[(size_t)i]",
+             "intentWet.getNextValue()", "intentDose.getNextValue()",
+             "intentDeltaL+=band.channels[0].process(", "set(\"intent_enabled\",0.f)"):
+    if name not in processor:
+        bad.append(f"LOVE INTENT independent DSP missing: {name}")
+for name in ("loveeq::intent::inspect(", "loveeq::intent::propose(",
+             "loveeq::intent::bounded(", "intentOriginalValid"):
+    if name not in ui:
+        bad.append(f"LOVE INTENT proposal or safety missing: {name}")
+# UI controls share the 1160x760 fixed layout and must not intersect.
+intent_rectangles={"mode":(852,96,178,30),"goal":(36,509,266,30),
+    "analyze":(310,509,95,30),"original":(712,509,73,30),
+    "suggested":(791,509,105,30),"keep":(902,509,106,30),
+    "cancel":(1014,509,109,30),"intensity":(802,542,307,30)}
+for i in range(3):
+    intent_rectangles[f"variant{i}"]=(413+i*99,509,94,30)
+    x=36+i*369
+    intent_rectangles[f"freq{i}"]=(x+8,637,106,65)
+    intent_rectangles[f"gain{i}"]=(x+126,637,106,65)
+    intent_rectangles[f"q{i}"]=(x+244,637,106,65)
+for key,(x,y,w,h) in intent_rectangles.items():
+    if x<24 or y<90 or x+w>1136 or y+h>709:
+        bad.append(f"LOVE INTENT rectangle beyond plugin panel: {key}")
+    for other,(xx,yy,ww,hh) in intent_rectangles.items():
+        if key<other and min(x+w,xx+ww)>max(x,xx) and min(y+h,yy+hh)>max(y,yy):
+            bad.append(f"LOVE INTENT control overlap: {key}, {other}")
 
 # Fail CI if the most frequent 13-inch layout collision regressions reappear.
 layout_contract={

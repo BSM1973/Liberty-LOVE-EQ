@@ -72,6 +72,37 @@ private:
     void initializeTimeLens();
     void updateTimeLensVisibility();
     void updateTimeLensButtonLabel();
+    // LOVE INTENT: 4 musical goals, 3 explanatory suggestions, reversible A/B.
+    juce::TextButton intentModeButton {"LOVE INTENT"},intentAnalyzeButton {"ANALYSER"};
+    std::array<juce::TextButton,3> intentVariantButtons {{
+        juce::TextButton("DOUX"),juce::TextButton(u8"ÉQUILIBRÉ"),
+        juce::TextButton(u8"AFFIRMÉ")
+    }};
+    juce::TextButton intentOriginalButton {"A ORIGINAL"},intentPreviewButton {"B PROPOSITION"},
+                     intentCommitButton {"CONSERVER"},intentCancelButton {"ANNULER"};
+    juce::ComboBox intentGoalBox;
+    juce::Slider intentAmountSlider;
+    std::unique_ptr<SliderAttachment> intentAmountAttachment;
+    std::array<juce::Slider,3> intentFrequencySlider,intentGainSlider,intentQSlider;
+    std::array<std::unique_ptr<SliderAttachment>,3> intentFreqAttach,intentGainAttach,intentQAttach;
+    bool intentMode=false,intentSuggestionsReady=false,intentPreviewing=false,
+         intentOriginalValid=false;
+    int intentVariant=1;
+    std::array<float,11> intentBaseline {};
+    loveeq::intent::Spectrum intentSpectrum {};
+    std::array<loveeq::intent::Suggestion,3> intentSuggestions {};
+    juce::String intentMessage;
+    void initializeIntent();
+    void updateIntentVisibility();
+    void updateIntentLabels();
+    void measureIntent();
+    void setIntentVariant(int);
+    void listenIntent(bool);
+    void commitIntent();
+    void cancelIntent();
+    void captureIntentBaseline();
+    void restoreIntentBaseline();
+    void closeIntentView();
     juce::TextEditor presetSearch;
     juce::ComboBox languageBox;
     juce::TextButton browserButton {"PRESETS"},peakResetButton {"PEAK RESET"};
