@@ -25,7 +25,7 @@ Protéger l'identité musicale d'une source monophonique en identifiant les comp
 
 ## Tests
 - Synthèses de séries harmoniques pour guitare (Mi2, 82,4 Hz), voix (Sol3, 196 Hz) et synthétiseur (La4, 440 Hz).
-- Détection de pic inharmonique clairement identifié à 920 Hz.
+- Détection de pic inharmonique clairement identifié à 950 Hz.
 - Absence de détection automatique sur silence, bruit large bande uniforme et onde sinusoïdale sans série harmonique.
 - Compilation Linux et macOS et artefacts AU/VST3/Standalone dans GitHub Actions.
 

@@ -25,7 +25,7 @@ int main() {
     using loveeq::dna::analyze;
     {
         auto guitar=harmonicSource(82.4069,10);
-        addTone(guitar,920.0,0.33);
+        addTone(guitar,950.0,0.33);
         const auto a=analyze(guitar.data(),(int)guitar.size(),48000.0,8192);
         if(!a.reliable)return fail("Guitar E2 fundamental not detected");
         if(std::abs(a.fundamentalHz-82.4069)>5.0)return fail("Wrong guitar fundamental");
@@ -33,7 +33,7 @@ int main() {
         if(a.inspectCount<1)return fail("Inharmonic peak should be flagged for inspection");
         bool present=false;
         for(int n=0;n<a.inspectCount;++n)
-            if(std::abs(a.inspect[(size_t)n].hz-920.f)<22.f)present=true;
+            if(std::abs(a.inspect[(size_t)n].hz-950.f)<22.f)present=true;
         if(!present)return fail("Nonharmonic peak missing from inspection list");
     }
     {
