@@ -59,6 +59,19 @@ private:
     void proposeRelationship();
     void applyRelationship();
     juce::TextButton sketchButton {"DESSIN"}, notesButton {"NOTES"}, grabButton {"CAPTER PIC"};
+    // The mode button only opens the editor view; time_lens_enabled controls DSP.
+    juce::TextButton timeLensModeButton {"TIME LENS"},timeLensEnableButton {"ACTIVER"};
+    bool timeLensMode=false;
+    std::array<juce::Slider,LoveEQAudioProcessor::timeStageCount> timeHzSlider,
+        timeGainSlider,timeQSlider;
+    std::array<std::unique_ptr<SliderAttachment>,LoveEQAudioProcessor::timeStageCount>
+        timeHzAttach,timeGainAttach,timeQAttach;
+    juce::Slider timeAttackSlider,timeTailSlider,timeThresholdSlider;
+    std::unique_ptr<SliderAttachment> timeAttackAttach,timeTailAttach,timeThresholdAttach;
+    std::unique_ptr<ButtonAttachment> timeEnableAttach;
+    void initializeTimeLens();
+    void updateTimeLensVisibility();
+    void updateTimeLensButtonLabel();
     juce::TextEditor presetSearch;
     juce::ComboBox languageBox;
     juce::TextButton browserButton {"PRESETS"},peakResetButton {"PEAK RESET"};

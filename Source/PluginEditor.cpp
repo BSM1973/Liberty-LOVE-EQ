@@ -237,6 +237,7 @@ LoveEQAudioProcessorEditor::LoveEQAudioProcessorEditor(LoveEQAudioProcessor& p)
     dnaFocusButton.onClick=[this]{focusDnaCandidate();};
     dnaCutButton.onClick=[this]{applyDnaSuggestion();};
     initializeRelationship();
+    initializeTimeLens();
     dnaFocusButton.setTooltip(u8"Préparer la fréquence non harmonique sans modifier l’audio. ATTÉNUER valide la coupe.");
     dnaCutButton.setTooltip(u8"Appliquer une coupe de -2 dB après votre confirmation.");
     updateDnaControls();
@@ -305,6 +306,84 @@ LoveEQAudioProcessorEditor::LoveEQAudioProcessorEditor(LoveEQAudioProcessor& p)
     startTimerHz(24);
 }
 LoveEQAudioProcessorEditor::~LoveEQAudioProcessorEditor(){stopTimer();setLookAndFeel(nullptr);}
+void LoveEQAudioProcessorEditor::initializeTimeLens() {
+    addAndMakeVisible(timeLensModeButton);
+    addAndMakeVisible(timeLensEnableButton);
+    timeLensModeButton.setClickingTogglesState(true);
+    timeLensModeButton.onClick=[this]{
+        const bool requested=timeLensModeButton.getToggleState();
+        if(requested && activeTab==2)selectTab(0);
+        if(requested && relationMode){
+            relationMode=false;
+            relationModeButton.setToggleState(false,juce::dontSendNotification);
+        }
+        timeLensMode=requested;
+        updateGraphicVisibility();
+        repaint();
+    };
+    timeLensModeButton.setTooltip(tr(
+        u8"Afficher les trois égalisations de l'attaque, du corps et de la fin",
+        "View the independent Attack, Body and Tail equalizers"));
+    timeLensEnableButton.setClickingTogglesState(true);
+    timeEnableAttach=std::make_unique<ButtonAttachment>(
+        processor.parameters,"time_lens_enabled",timeLensEnableButton);
+    timeLensEnableButton.onClick=[this]{updateTimeLensButtonLabel();repaint();};
+    timeLensEnableButton.setTooltip(tr(
+        u8"Activer ou désactiver le DSP TIME LENS, avec fondu sans clic",
+        "Enable or disable the TIME LENS DSP with a smoothed transition"));
+
+    auto configureSlider=[this](juce::Slider& slider,const juce::String& id,
+                                std::unique_ptr<SliderAttachment>& attachment,
+                                const juce::String& unit) {
+        slider.setSliderStyle(juce::Slider::LinearHorizontal);
+        slider.setTextBoxStyle(juce::Slider::TextBoxBelow,false,86,18);
+        slider.setColour(juce::Slider::backgroundColourId,juce::Colour(0xff0f1821));
+        slider.setColour(juce::Slider::trackColourId,juce::Colour(0xffdec28a));
+        slider.setColour(juce::Slider::thumbColourId,juce::Colour(0xffe1ceb0));
+        slider.setTextValueSuffix(unit);
+        addAndMakeVisible(slider);
+        attachment=std::make_unique<SliderAttachment>(processor.parameters,id,slider);
+    };
+    for(int i=0;i<LoveEQAudioProcessor::timeStageCount;++i) {
+        configureSlider(timeHzSlider[(size_t)i],
+            LoveEQAudioProcessor::timeStageId(i,"hz"),timeHzAttach[(size_t)i]," Hz");
+        configureSlider(timeGainSlider[(size_t)i],
+            LoveEQAudioProcessor::timeStageId(i,"gain"),timeGainAttach[(size_t)i]," dB");
+        configureSlider(timeQSlider[(size_t)i],
+            LoveEQAudioProcessor::timeStageId(i,"q"),timeQAttach[(size_t)i],"");
+    }
+    configureSlider(timeAttackSlider,"time_lens_attack_ms",timeAttackAttach," ms");
+    configureSlider(timeTailSlider,"time_lens_tail_ms",timeTailAttach," ms");
+    configureSlider(timeThresholdSlider,"time_lens_threshold_db",timeThresholdAttach," dB");
+    timeThresholdSlider.setTooltip(tr(
+        u8"Seuil de détection des attaques et fins de notes",
+        "Level used to detect note attacks and releases"));
+    timeAttackSlider.setTooltip(tr(
+        u8"Durée de l'égalisation de l'attaque",
+        "Duration of the attack EQ stage"));
+    timeTailSlider.setTooltip(tr(
+        u8"Durée de l'égalisation de fin de note",
+        "Duration of the note-tail EQ stage"));
+    updateTimeLensVisibility();
+    updateTimeLensButtonLabel();
+}
+void LoveEQAudioProcessorEditor::updateTimeLensButtonLabel() {
+    const auto* enabled=processor.parameters.getRawParameterValue("time_lens_enabled");
+    const bool on=enabled && enabled->load()>0.5f;
+    timeLensEnableButton.setButtonText(on?tr(u8"DÉSACTIVER","DISABLE"):tr("ACTIVER","ENABLE"));
+}
+void LoveEQAudioProcessorEditor::updateTimeLensVisibility() {
+    const bool visible=timeLensMode && activeTab!=2;
+    timeLensEnableButton.setVisible(visible);
+    for(int i=0;i<LoveEQAudioProcessor::timeStageCount;++i) {
+        timeHzSlider[(size_t)i].setVisible(visible);
+        timeGainSlider[(size_t)i].setVisible(visible);
+        timeQSlider[(size_t)i].setVisible(visible);
+    }
+    timeAttackSlider.setVisible(visible);
+    timeTailSlider.setVisible(visible);
+    timeThresholdSlider.setVisible(visible);
+}
 void LoveEQAudioProcessorEditor::initializeRelationship() {
     for(juce::Component* c:std::array<juce::Component*,6>{
         &relationModeButton,&relationRoleBox,&relationPriorityBox,
@@ -357,7 +436,7 @@ void LoveEQAudioProcessorEditor::initializeRelationship() {
     updateRelationshipControls();
 }
 void LoveEQAudioProcessorEditor::updateRelationshipControls() {
-    const bool shown=relationMode && activeTab!=2;
+    const bool shown=relationMode && activeTab!=2 && !timeLensMode;
     for(juce::Component* component:std::array<juce::Component*,5>{
         &relationRoleBox,&relationPriorityBox,&relationGroupBox,
         &relationSuggestButton,&relationApplyButton})
@@ -447,18 +526,23 @@ void LoveEQAudioProcessorEditor::selectTab(int tab) {
 }
 void LoveEQAudioProcessorEditor::updateGraphicVisibility() {
     const bool graphic=activeTab==2;
+    if(graphic && timeLensMode) {
+        timeLensMode=false;
+        timeLensModeButton.setToggleState(false,juce::dontSendNotification);
+    }
     if(graphic && relationMode){
         relationMode=false;
         relationModeButton.setToggleState(false,juce::dontSendNotification);
     }
-    for(auto& button:bandButtons)button.setVisible(!graphic);
+    for(auto& button:bandButtons)button.setVisible(!graphic && !timeLensMode);
     for(auto& slider:graphicSliders)slider.setVisible(graphic);
+    updateTimeLensVisibility();
     updateDnaControls();
     updateRelationshipControls();
     for(juce::Component* component : std::array<juce::Component*,13>{
             &frequency,&gain,&q,&threshold,&range,&attack,&release,
             &typeBox,&channelBox,&slopeBox,&enabledButton,&soloButton,&dynamicButton})
-        component->setVisible(!graphic);
+        component->setVisible(!graphic && !timeLensMode);
 }
 void LoveEQAudioProcessorEditor::updateLanguageSafeTexts() {
     tabParam.setButtonText(tr(u8"PARAMÉTRIQUE","PARAMETRIC"));
@@ -480,6 +564,8 @@ void LoveEQAudioProcessorEditor::updateLanguageSafeTexts() {
     dnaFocusButton.setButtonText(tr("CIBLER","TARGET"));
     dnaCutButton.setButtonText(tr(u8"ATTÉNUER","CUT -2 dB"));
     relationModeButton.setButtonText("RELATION EQ");
+    timeLensModeButton.setButtonText("TIME LENS");
+    updateTimeLensButtonLabel();
     relationSuggestButton.setButtonText(tr("PROPOSER","SUGGEST"));
     const int keepRole=relationRoleBox.getSelectedId();
     const int keepPriority=relationPriorityBox.getSelectedId();
@@ -849,6 +935,42 @@ void LoveEQAudioProcessorEditor::paint(juce::Graphics& g) {
             const juce::String label=hz>=1000.0?juce::String(hz/1000.0,1)+"k":juce::String((int)hz);
             g.drawText(label,bounds.getX()-3,bounds.getBottom()+1,bounds.getWidth()+6,14,juce::Justification::centred);
         }
+    } else if(timeLensMode) {
+        const auto stage=(int)processor.timeLensPhase.load(std::memory_order_relaxed);
+        const auto enabled=processor.parameters.getRawParameterValue("time_lens_enabled");
+        const bool running=enabled && enabled->load()>0.5f;
+        g.setColour(juce::Colour(0xff202a33));
+        g.fillRoundedRectangle(bandRow.toFloat(),6.f);
+        g.setColour(juce::Colour(0xff43525e));
+        g.drawRoundedRectangle(bandRow.toFloat(),6.f,1.f);
+        g.setFont(juce::Font(juce::FontOptions("Arial",9.3f,juce::Font::bold)));
+        g.setColour(juce::Colour(0xff9db0bd));
+        g.drawText(tr("SEUIL","THRESHOLD"),39,507,170,15,juce::Justification::centredLeft);
+        g.drawText(tr(u8"DURÉE ATTAQUE","ATTACK TIME"),223,507,173,15,juce::Justification::centredLeft);
+        g.drawText(tr(u8"DURÉE FIN","TAIL TIME"),407,507,170,15,juce::Justification::centredLeft);
+        const std::array<juce::String,3> names {
+            tr("ATTAQUE","ATTACK"),tr("CORPS","BODY"),tr("FIN","TAIL")
+        };
+        const std::array<juce::String,3> hints {
+            tr("TRANSITOIRE","TRANSIENT"),tr("MAINTIEN","SUSTAIN"),tr(u8"DÉCLIN","RELEASE")
+        };
+        const std::array<juce::Colour,3> colours {
+            juce::Colour(0xffe8bc75),juce::Colour(0xff83cbbd),juce::Colour(0xffbd9be6)
+        };
+        for(int i=0;i<3;++i) {
+            const auto rect=juce::Rectangle<float>((float)(714+i*141),513.f,131.f,56.f);
+            const bool selected=running && stage==i+1;
+            g.setColour(selected?colours[(size_t)i].withAlpha(0.24f):juce::Colour(0xff28343e));
+            g.fillRoundedRectangle(rect,6.f);
+            g.setColour(selected?colours[(size_t)i]:juce::Colour(0xff4a5963));
+            g.drawRoundedRectangle(rect,6.f,selected?1.6f:1.f);
+            g.setColour(selected?juce::Colour(0xfff5f0e7):juce::Colour(0xffcad5db));
+            g.setFont(juce::Font(juce::FontOptions("Arial",12.f,juce::Font::bold)));
+            g.drawText(names[(size_t)i],(int)rect.getX()+5,518,121,19,juce::Justification::centred);
+            g.setColour(selected?colours[(size_t)i]:juce::Colour(0xff92a6b2));
+            g.setFont(juce::Font(juce::FontOptions("Arial",9.f,juce::Font::plain)));
+            g.drawText(hints[(size_t)i],(int)rect.getX()+5,542,121,15,juce::Justification::centred);
+        }
     } else {
     // Eight colour-coded full-width tiles like the reference.
     for(int i=0;i<8;++i) {
@@ -888,7 +1010,7 @@ void LoveEQAudioProcessorEditor::paint(juce::Graphics& g) {
     // Bottom edit strip: filter, dynamic band, and deliberately honest EQ Match status.
     g.setColour(juce::Colour(0xff252e36));
     g.fillRoundedRectangle(bottomPanel.toFloat(),5.f);
-    if(activeTab!=2) {
+    if(activeTab!=2 && !timeLensMode) {
         const auto selectedColour=juce::Colour(bandColours[(size_t)selectedBand]);
         // Entire band editor follows the selected tile colour, not only its dot.
         g.setColour(selectedColour.withAlpha(0.18f));
@@ -912,6 +1034,34 @@ void LoveEQAudioProcessorEditor::paint(juce::Graphics& g) {
         g.drawText(tr(u8"Déplacez les curseurs au-dessus ou les points du graphe.",
                       "Move the sliders above or drag the graph nodes."),
                       43,bottomPanel.getY()+78,bottomPanel.getWidth()-60,22,juce::Justification::centredLeft);
+    } else if(timeLensMode) {
+        const std::array<juce::String,3> titles {
+            tr("ATTAQUE","ATTACK"),tr("CORPS","BODY"),tr("FIN","TAIL")
+        };
+        const std::array<juce::Colour,3> colors {
+            juce::Colour(0xffe8bc75),juce::Colour(0xff83cbbd),juce::Colour(0xffbd9be6)
+        };
+        const int phase=processor.timeLensPhase.load(std::memory_order_relaxed);
+        const auto* enabled=processor.parameters.getRawParameterValue("time_lens_enabled");
+        const bool running=enabled && enabled->load()>0.5f;
+        for(int i=0;i<3;++i) {
+            const int x=36+i*369;
+            const auto rect=juce::Rectangle<float>((float)x,592.f,352.f,111.f);
+            const auto color=colors[(size_t)i];
+            g.setColour(juce::Colour(0xff1c2932));
+            g.fillRoundedRectangle(rect,6.f);
+            g.setColour(running && phase==i+1?color:color.withAlpha(0.48f));
+            g.drawRoundedRectangle(rect,6.f,running && phase==i+1?1.7f:1.0f);
+            g.setColour(color);
+            g.fillRoundedRectangle((float)x+2.f,593.f,348.f,2.8f,1.f);
+            g.setFont(juce::Font(juce::FontOptions("Arial",12.f,juce::Font::bold)));
+            g.drawText(titles[(size_t)i],x+12,597,325,20,juce::Justification::centredLeft);
+            g.setColour(juce::Colour(0xffaabcc5));
+            g.setFont(juce::Font(juce::FontOptions("Arial",9.6f,juce::Font::plain)));
+            g.drawText(tr(u8"FRÉQUENCE","FREQUENCY"),x+8,619,105,16,juce::Justification::centred);
+            g.drawText("GAIN",x+126,619,106,16,juce::Justification::centred);
+            g.drawText("Q",x+244,619,106,16,juce::Justification::centred);
+        }
     } else {
     const int split1=controls.getRight()+8;
     const int split2=split1+287;
@@ -1034,6 +1184,7 @@ void LoveEQAudioProcessorEditor::resized() {
     grabButton.setBounds(579,155,101,25);
     dnaButton.setBounds(690,155,142,25);
     relationModeButton.setBounds(840,155,146,25);
+    timeLensModeButton.setBounds(994,155,141,25);
     graph={65,210,w-219,239};
     meterBox={w-132,192,101,272};
     peakResetButton.setBounds(meterBox.getX()+4,meterBox.getBottom()-26,93,23);
@@ -1055,6 +1206,16 @@ void LoveEQAudioProcessorEditor::resized() {
     relationGroupBox.setBounds(880,675,66,26);
     relationSuggestButton.setBounds(952,675,82,26);
     relationApplyButton.setBounds(1040,675,78,26);
+    timeThresholdSlider.setBounds(38,529,172,43);
+    timeAttackSlider.setBounds(222,529,172,43);
+    timeTailSlider.setBounds(406,529,172,43);
+    timeLensEnableButton.setBounds(590,519,103,35);
+    for(int j=0;j<LoveEQAudioProcessor::timeStageCount;++j) {
+        const int x=36+j*369;
+        timeHzSlider[(size_t)j].setBounds(x+8,639,106,63);
+        timeGainSlider[(size_t)j].setBounds(x+126,639,106,63);
+        timeQSlider[(size_t)j].setBounds(x+244,639,106,63);
+    }
     controls={24,587,560,122};
     footerPanel={24,718,w-48,35};
     const int baseY=bottomPanel.getY()+57;
@@ -1235,7 +1396,7 @@ void LoveEQAudioProcessorEditor::updateFFT(bool before,std::array<float,1025>& o
     for(int j=0;j<=1024;++j)out[(size_t)j]=juce::Decibels::gainToDecibels(fftScratch[(size_t)j]/512.f,-96.f);
 }
 void LoveEQAudioProcessorEditor::updateDnaControls() {
-    const bool mode=dnaEnabled && activeTab!=2 && !relationMode;
+    const bool mode=dnaEnabled && activeTab!=2 && !relationMode && !timeLensMode;
     dnaFocusButton.setVisible(mode);
     dnaCutButton.setVisible(mode);
     const bool hasCandidate=dnaResult.reliable && dnaResult.inspectCount>0;
@@ -1304,6 +1465,7 @@ void LoveEQAudioProcessorEditor::applyDnaSuggestion() {
     repaint();
 }
 void LoveEQAudioProcessorEditor::timerCallback(){
+    updateTimeLensButtonLabel();
     if(!freezeSpectrum) {
         if(showPre)updateFFT(true,preSpectrum);
         if(showPost)updateFFT(false,postSpectrum);

@@ -37,6 +37,21 @@ APVTS::ParameterLayout LoveEQAudioProcessor::makeParameterLayout() {
     p.add(choice("relationship_priority","Relationship Priority",
                  {"Voice","Bass","Guitar","Other"},0));
     p.add(boolean("relationship_active","Relationship Dynamic Active",false));
+    // TIME LENS: 3 independent bell filters, disabled until explicitly enabled.
+    p.add(boolean("time_lens_enabled","Time Lens Active",false));
+    p.add(fl("time_lens_attack_ms","Time Lens Attack Duration",5.f,150.f,35.f,1.f));
+    p.add(fl("time_lens_tail_ms","Time Lens Tail Duration",60.f,1200.f,400.f,1.f));
+    p.add(fl("time_lens_threshold_db","Time Lens Trigger Threshold",-65.f,-12.f,-38.f,1.f));
+    constexpr std::array<float,3> timeHz {3900.f,280.f,1100.f};
+    constexpr std::array<float,3> timeGain {-3.0f,1.0f,0.6f};
+    constexpr std::array<float,3> timeQ {2.1f,0.85f,1.1f};
+    constexpr std::array<const char*,3> stageNames {"Attack","Body","Tail"};
+    for(int j=0;j<timeStageCount;++j) {
+        const auto label=juce::String("Time Lens ") + stageNames[(size_t)j];
+        p.add(fl(timeStageId(j,"hz"),label+" Frequency",30.f,18000.f,timeHz[(size_t)j]));
+        p.add(fl(timeStageId(j,"gain"),label+" Gain",-12.f,12.f,timeGain[(size_t)j],0.1f));
+        p.add(fl(timeStageId(j,"q"),label+" Q",0.35f,8.f,timeQ[(size_t)j]));
+    }
     p.add(fl("relationship_hz","Relationship Center Frequency",65.f,8000.f,1000.f));
     p.add(fl("relationship_q","Relationship Q",0.5f,6.f,1.4f));
     p.add(fl("relationship_max_cut","Relationship Maximum Reduction",0.f,6.f,3.f));
@@ -77,6 +92,16 @@ LoveEQAudioProcessor::LoveEQAudioProcessor()
     bypassParam=parameters.getRawParameterValue("bypass");
     sidechainParam=parameters.getRawParameterValue("external_sc");
     eqModeParam=parameters.getRawParameterValue("eq_mode");
+    timeEnabledParam=parameters.getRawParameterValue("time_lens_enabled");
+    timeAttackParam=parameters.getRawParameterValue("time_lens_attack_ms");
+    timeTailParam=parameters.getRawParameterValue("time_lens_tail_ms");
+    timeThresholdParam=parameters.getRawParameterValue("time_lens_threshold_db");
+    for(int i=0;i<timeStageCount;++i) {
+        auto& stage=timeParams[(size_t)i];
+        stage.hz=parameters.getRawParameterValue(timeStageId(i,"hz"));
+        stage.gain=parameters.getRawParameterValue(timeStageId(i,"gain"));
+        stage.q=parameters.getRawParameterValue(timeStageId(i,"q"));
+    }
     relationshipRoleParam=parameters.getRawParameterValue("relationship_role");
     relationshipGroupParam=parameters.getRawParameterValue("relationship_group");
     relationshipPriorityParam=parameters.getRawParameterValue("relationship_priority");
@@ -198,6 +223,16 @@ void LoveEQAudioProcessor::prepareToPlay(double sampleRate,int) {
     relationshipAttackCoeff=std::exp(-1.0/(rate*0.035));
     relationshipReleaseCoeff=std::exp(-1.0/(rate*0.24));
     for(auto& lane:relationshipFilters)lane.reset();
+    timeDetector.prepare(rate);
+    timeDetector.configure(value(timeAttackParam),value(timeTailParam),value(timeThresholdParam));
+    for(int i=0;i<timeStageCount;++i) {
+        const auto& params=timeParams[(size_t)i];
+        timeRuntime[(size_t)i].reset(rate,value(params.hz),value(params.gain),value(params.q));
+    }
+    timeWet.reset(rate,0.025);
+    timeWet.setCurrentAndTargetValue(value(timeEnabledParam)>0.5f?1.f:0.f);
+    timeLensPhase.store(0,std::memory_order_relaxed);
+    timeLensEnvelope.store(0.f,std::memory_order_relaxed);
     setLatencySamples(0);
 }
 void LoveEQAudioProcessor::releaseResources() {}
@@ -229,6 +264,16 @@ void LoveEQAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,juce::M
         rt.smoothedQ.setTargetValue(s.q);
         rt.wet.setTargetValue((s.enabled && (!anySolo || s.solo))?1.f:0.f);
     }
+    timeDetector.configure(value(timeAttackParam),value(timeTailParam),
+                           value(timeThresholdParam));
+    timeWet.setTargetValue(value(timeEnabledParam)>0.5f?1.f:0.f);
+    for(int i=0;i<timeStageCount;++i) {
+        const auto& controls=timeParams[(size_t)i];
+        auto& stage=timeRuntime[(size_t)i];
+        stage.hz.setTargetValue(value(controls.hz));
+        stage.gain.setTargetValue(value(controls.gain));
+        stage.q.setTargetValue(value(controls.q));
+    }
     const int relationGroup=(int)value(relationshipGroupParam);
     const int relationRole=(int)value(relationshipRoleParam);
     const int relationPriority=(int)value(relationshipPriorityParam)+1;
@@ -247,10 +292,15 @@ void LoveEQAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,juce::M
             value(relationshipMaxCutParam)):0.f;
     const float relationQ=juce::jlimit(0.5f,6.f,value(relationshipQParam));
     float inPeak=0.f, outPeak=0.f;
+    float lastEnvelope=0.f;
     for (int sample=0;sample<n;++sample) {
         const float origL=left[sample], origR=right?right[sample]:origL;
         inPeak=std::max({inPeak,std::abs(origL),std::abs(origR)});
-        relationMeter.push(0.5f*(origL+origR));
+        const float mono=0.5f*(origL+origR);
+        relationMeter.push(mono);
+        // Do not cancel stereo content when the two channels are antiphase.
+        const auto timePhase=timeDetector.process(std::max(std::abs(origL),std::abs(origR)));
+        lastEnvelope=timePhase.envelope;
         float l=origL*inputGain.getNextValue();
         float r=right?origR*inputGain.getCurrentValue():l;
         // Both engines run while crossfading so filter histories remain warm.
@@ -308,6 +358,40 @@ void LoveEQAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,juce::M
         }
         l=relationshipFilters[0].process(l);
         if(right)r=relationshipFilters[1].process(r);
+        // Three parallel Bell filters maintain continuous histories.
+        // Weighted differences give seamless Attack/Body/Tail crossfades.
+        const float dryTimeL=l,dryTimeR=r;
+        float correctionL=0.f,correctionR=0.f;
+        const float stageMix=timeWet.getNextValue();
+        std::array<float,timeStageCount> timeWeights {};
+        float totalWeight=0.f;
+        for(int ti=0;ti<timeStageCount;++ti) {
+            auto& stage=timeRuntime[(size_t)ti];
+            stage.weight.setTargetValue(timePhase.stage[(size_t)ti]);
+            timeWeights[(size_t)ti]=stage.weight.getNextValue();
+            totalWeight+=timeWeights[(size_t)ti];
+        }
+        const float weightScale=stageMix/std::max(1.f,totalWeight);
+        for(int ti=0;ti<timeStageCount;++ti) {
+            auto& stage=timeRuntime[(size_t)ti];
+            const float weight=timeWeights[(size_t)ti]*weightScale;
+            const double hz=stage.hz.getNextValue();
+            const double gainDb=stage.gain.getNextValue();
+            const double qValue=stage.q.getNextValue();
+            if(--stage.coeffCountdown<=0) {
+                const auto coeff=loveeq::design(loveeq::Type::Bell,rate,hz,gainDb,qValue);
+                for(auto& c:stage.channels)c.set(coeff);
+                stage.coeffCountdown=32;
+            }
+            const float processedL=stage.channels[0].process(dryTimeL);
+            correctionL+=weight*(processedL-dryTimeL);
+            if(right) {
+                const float processedR=stage.channels[1].process(dryTimeR);
+                correctionR+=weight*(processedR-dryTimeR);
+            }
+        }
+        l=dryTimeL+correctionL;
+        if(right)r=dryTimeR+correctionR;
         const float outGainNow=outputGain.getNextValue();
         const float mix=globalWet.getNextValue();
         const float finalL=origL+mix*(l*outGainNow-origL);
@@ -328,6 +412,8 @@ void LoveEQAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,juce::M
     };
     updatePeak(peakHoldIn,inPeak);
     updatePeak(peakHoldOut,outPeak);
+    timeLensPhase.store((int)timeDetector.currentPhase(),std::memory_order_relaxed);
+    timeLensEnvelope.store(lastEnvelope,std::memory_order_relaxed);
     relationPreviousLevels=relationMeter.take();
     loveeq::relationship::registry().publish(relationSlot,relationGroup,relationRole,relationPreviousLevels);
 }
@@ -352,6 +438,7 @@ void LoveEQAudioProcessor::loadFactoryPreset(size_t index) {
     set("input_gain",0); set("output_gain",0); set("bypass",0); set("external_sc",0);
     set("eq_mode",0.f);
     set("relationship_active",0.f);
+    set("time_lens_enabled",0.f);
     for(int i=0;i<bandCount;++i) {
         const auto& b=data[(size_t)i];
         const auto id=[i](const juce::String& s){return bandId(i,s);};
@@ -371,6 +458,15 @@ void LoveEQAudioProcessor::resetToFlat() {
     set("input_gain",0.f);set("output_gain",0.f);set("bypass",0.f);set("external_sc",0.f);
     set("eq_mode",0.f);
     set("relationship_active",0.f);
+    set("time_lens_enabled",0.f);
+    set("time_lens_attack_ms",35.f);
+    set("time_lens_tail_ms",400.f);
+    set("time_lens_threshold_db",-38.f);
+    for(int i=0;i<timeStageCount;++i) {
+        set(timeStageId(i,"hz"),std::array<float,3>{3900.f,280.f,1100.f}[(size_t)i]);
+        set(timeStageId(i,"gain"),0.f);
+        set(timeStageId(i,"q"),std::array<float,3>{2.1f,0.85f,1.1f}[(size_t)i]);
+    }
     for(int i=0;i<graphicBandCount;++i) set(graphicId(i),0.f);
     for(int i=0;i<bandCount;++i) {
         const auto id=[i](const juce::String& s){return bandId(i,s);};

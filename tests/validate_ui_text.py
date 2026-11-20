@@ -102,6 +102,39 @@ for token in ('"relationship_role"','"relationship_priority"','"relationship_gro
     if token not in processor:
         bad.append(f"Relationship DSP integration missing: {token}")
 
+
+# TIME LENS: editable three-stage processing and a dedicated non-overlapping view.
+for name in ("timeLensModeButton.setBounds(", "timeLensEnableButton.setBounds(",
+             "timeThresholdSlider.setBounds(", "timeAttackSlider.setBounds(",
+             "timeTailSlider.setBounds(", "timeHzSlider[(size_t)j].setBounds(",
+             "timeGainSlider[(size_t)j].setBounds(", "timeQSlider[(size_t)j].setBounds(",
+             "void LoveEQAudioProcessorEditor::initializeTimeLens(",
+             "void LoveEQAudioProcessorEditor::updateTimeLensVisibility("):
+    if name not in ui:
+        bad.append(f"TIME LENS control missing: {name}")
+for name in ('"time_lens_enabled"', '"time_lens_attack_ms"', '"time_lens_tail_ms"',
+             '"time_lens_threshold_db"', 'timeDetector.process(', 
+             'timeRuntime[(size_t)ti]', 'timeWeights[(size_t)ti]'):
+    if name not in processor:
+        bad.append(f"TIME LENS DSP missing: {name}")
+lens_rectangles={
+    "mode":(994,155,141,25),"relation_button":(840,155,146,25),
+    "sensitivity":(38,529,172,43),"attack_duration":(222,529,172,43),
+    "tail_duration":(406,529,172,43),"enable":(590,519,103,35),
+}
+for stage in range(3):
+    bx=36+stage*369
+    lens_rectangles[f"stage{stage}_freq"]=(bx+8,639,106,63)
+    lens_rectangles[f"stage{stage}_gain"]=(bx+126,639,106,63)
+    lens_rectangles[f"stage{stage}_q"]=(bx+244,639,106,63)
+    lens_rectangles[f"timeline{stage}"]=(714+stage*141,513,131,56)
+for name,(x,y,w,h) in lens_rectangles.items():
+    if x<24 or y<145 or x+w>1136 or y+h>709:
+        bad.append(f"TIME LENS rectangle out of main panel: {name}")
+    for other,(ox,oy,ow,oh) in lens_rectangles.items():
+        if name<other and min(x+w,ox+ow)>max(x,ox) and min(y+h,oy+oh)>max(y,oy):
+            bad.append(f"TIME LENS collision: {name} / {other}")
+
 # Fail CI if the most frequent 13-inch layout collision regressions reappear.
 layout_contract={
     "header_browse":(660,37,102,32),

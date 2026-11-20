@@ -4,12 +4,19 @@
 #include <atomic>
 #include "EqCore.h"
 #include "RelationshipEQ.h"
+#include "TimeLensCore.h"
 
 class LoveEQAudioProcessor final : public juce::AudioProcessor {
 public:
     static constexpr int bandCount = 8;
     static constexpr int scopeSize = 8192; // Longer analyzer history for Harmonic DNA. RT write count unchanged.
     static constexpr int graphicBandCount = 16;
+    static constexpr int timeStageCount = 3;
+    static juce::String timeStageId(int stage,const juce::String& param) {
+        return "time_lens_" + juce::String(stage+1) + "_" + param;
+    }
+    std::atomic<int> timeLensPhase {0};
+    std::atomic<float> timeLensEnvelope {0.f};
     static constexpr std::array<double,graphicBandCount> graphicHz {
         25.0,40.0,63.0,100.0,160.0,250.0,400.0,630.0,
         1000.0,1600.0,2500.0,4000.0,6300.0,10000.0,16000.0,20000.0
@@ -99,6 +106,32 @@ private:
     std::array<loveeq::Biquad,2> relationshipFilters {};
     double relationshipGainDb=0.0,relationshipAttackCoeff=0.0,relationshipReleaseCoeff=0.0;
     int relationshipCoeffCountdown=0;
+    struct TimeStageRuntime {
+        std::array<loveeq::Biquad,2> channels {};
+        juce::SmoothedValue<double> hz,gain,q;
+        juce::SmoothedValue<float> weight;
+        int coeffCountdown=0;
+        void reset(double sr,float initHz,float initGain,float initQ) {
+            for(auto& c:channels)c.reset();
+            hz.reset(sr,0.020);gain.reset(sr,0.020);q.reset(sr,0.020);
+            hz.setCurrentAndTargetValue(initHz);
+            gain.setCurrentAndTargetValue(initGain);
+            q.setCurrentAndTargetValue(initQ);
+            weight.reset(sr,0.012);weight.setCurrentAndTargetValue(0.f);
+            coeffCountdown=0;
+        }
+    };
+    struct TimeStageParams {
+        std::atomic<float>* hz{};
+        std::atomic<float>* gain{};
+        std::atomic<float>* q{};
+    };
+    loveeq::timelens::Detector timeDetector;
+    std::array<TimeStageRuntime,timeStageCount> timeRuntime {};
+    std::array<TimeStageParams,timeStageCount> timeParams {};
+    std::atomic<float>* timeEnabledParam{},*timeAttackParam{},
+                      *timeTailParam{},*timeThresholdParam{};
+    juce::SmoothedValue<float> timeWet;
     std::array<GraphicRuntime,graphicBandCount> graphicRuntime {};
     std::array<std::atomic<float>*,graphicBandCount> graphicParams {};
     std::atomic<float>* eqModeParam {};
