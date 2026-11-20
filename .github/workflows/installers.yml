@@ -1,4 +1,6 @@
-name: LOVE EQ - Two Installers (Apple Notarized PKG and Windows EXE)
+name: LOVE EQ - Windows x64 VST3 + Standalone EXE Installer
+# Apple notarized PKG is issued through the trusted ECHO 86 Release Center,
+# where the existing Developer ID certificates and Apple notary account live.
 on:
   push:
     branches: [main]
@@ -17,62 +19,6 @@ concurrency:
 env:
   LOVE_EQ_VERSION: "0.1.0"
 jobs:
-  macos-installer:
-    name: macOS - signed and Apple notarized PKG
-    runs-on: macos-15-intel
-    timeout-minutes: 110
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          persist-credentials: false
-      - name: Verify Apple Developer ID and Notary credentials BEFORE build
-        shell: bash
-        env:
-          APPLE_DEVELOPER_ID_APPLICATION_P12_BASE64: ${{ secrets.APPLE_DEVELOPER_ID_APPLICATION_P12_BASE64 }}
-          APPLE_DEVELOPER_ID_INSTALLER_P12_BASE64: ${{ secrets.APPLE_DEVELOPER_ID_INSTALLER_P12_BASE64 }}
-          APPLE_P12_PASSWORD: ${{ secrets.APPLE_P12_PASSWORD }}
-          APPLE_NOTARY_APPLE_ID: ${{ secrets.APPLE_NOTARY_APPLE_ID }}
-          APPLE_NOTARY_APP_PASSWORD: ${{ secrets.APPLE_NOTARY_APP_PASSWORD }}
-          APPLE_NOTARY_TEAM_ID: ${{ secrets.APPLE_NOTARY_TEAM_ID }}
-        run: |
-          set -euo pipefail
-          missing=0
-          for name in APPLE_DEVELOPER_ID_APPLICATION_P12_BASE64 APPLE_DEVELOPER_ID_INSTALLER_P12_BASE64 APPLE_P12_PASSWORD APPLE_NOTARY_APPLE_ID APPLE_NOTARY_APP_PASSWORD APPLE_NOTARY_TEAM_ID; do
-            if [[ -z "${!name:-}" ]]; then
-              echo "::error::Missing required Apple secret: $name"
-              missing=1
-            fi
-          done
-          [[ "$missing" == 0 ]] || exit 1
-          echo "Apple release credentials present; starting build without exposing them."
-      - name: Configure universal macOS AU + VST3 + Standalone
-        shell: bash
-        run: cmake -S . -B build -G Xcode '-DCMAKE_OSX_ARCHITECTURES=x86_64;arm64' -DCMAKE_OSX_DEPLOYMENT_TARGET=12.0 -DCMAKE_BUILD_TYPE=Release
-      - name: Compile plugin and all JUCE tests
-        shell: bash
-        run: cmake --build build --config Release --parallel 3
-      - name: Run the real JUCE UTF-8 and DSP regression tests
-        shell: bash
-        run: ctest --test-dir build -C Release --output-on-failure
-      - name: Sign all macOS bundles, notarize, staple and verify installer
-        shell: bash
-        env:
-          APPLE_DEVELOPER_ID_APPLICATION_P12_BASE64: ${{ secrets.APPLE_DEVELOPER_ID_APPLICATION_P12_BASE64 }}
-          APPLE_DEVELOPER_ID_INSTALLER_P12_BASE64: ${{ secrets.APPLE_DEVELOPER_ID_INSTALLER_P12_BASE64 }}
-          APPLE_P12_PASSWORD: ${{ secrets.APPLE_P12_PASSWORD }}
-          APPLE_NOTARY_APPLE_ID: ${{ secrets.APPLE_NOTARY_APPLE_ID }}
-          APPLE_NOTARY_APP_PASSWORD: ${{ secrets.APPLE_NOTARY_APP_PASSWORD }}
-          APPLE_NOTARY_TEAM_ID: ${{ secrets.APPLE_NOTARY_TEAM_ID }}
-        run: bash Installer/macos/sign_notarize.sh "$LOVE_EQ_VERSION"
-      - name: Publish only Apple Accepted and stapled .pkg
-        uses: actions/upload-artifact@v4
-        with:
-          name: LOVE-EQ-macOS-SIGNED-NOTARIZED-PKG
-          path: release-output/LOVE-EQ-*-SIGNED-NOTARIZED.pkg
-          if-no-files-found: error
-          retention-days: 90
-          compression-level: 0
-
   windows-installer:
     name: Windows x64 - VST3 and Standalone EXE installer
     runs-on: windows-2022
