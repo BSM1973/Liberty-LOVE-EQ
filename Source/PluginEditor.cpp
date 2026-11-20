@@ -201,10 +201,14 @@ LoveEQAudioProcessorEditor::LoveEQAudioProcessorEditor(LoveEQAudioProcessor& p)
     for(juce::TextButton* b : std::array<juce::TextButton*,13>{
             &buttonA,&buttonB,&undoButton,&redoButton,&resetButton,&bypassButton,&preButton,&postButton,
             &tabParam,&tabDynamic,&tabGraphic,&holdButton,&freezeButton}) show(*b);
-    tabParam.onClick=[this]{selectTab(0);};
-    tabDynamic.onClick=[this]{selectTab(1);};
+    auto closeLens=[this]{
+        timeLensMode=false;
+        timeLensModeButton.setToggleState(false,juce::dontSendNotification);
+    };
+    tabParam.onClick=[this,closeLens]{closeLens();selectTab(0);};
+    tabDynamic.onClick=[this,closeLens]{closeLens();selectTab(1);};
     tabGraphic.setEnabled(true);
-    tabGraphic.onClick=[this]{selectTab(2);};
+    tabGraphic.onClick=[this,closeLens]{closeLens();selectTab(2);};
     tabGraphic.setTooltip(u8"16 bandes graphiques réellement traitées dans le moteur audio");
     holdButton.setClickingTogglesState(true);
     holdButton.onClick=[this]{holdSpectrum=holdButton.getToggleState();
@@ -312,7 +316,7 @@ void LoveEQAudioProcessorEditor::initializeTimeLens() {
     timeLensModeButton.setClickingTogglesState(true);
     timeLensModeButton.onClick=[this]{
         const bool requested=timeLensModeButton.getToggleState();
-        if(requested && activeTab==2)selectTab(0);
+        // Opening the editor must NEVER switch the active EQ audio engine.
         if(requested && relationMode){
             relationMode=false;
             relationModeButton.setToggleState(false,juce::dontSendNotification);
@@ -373,7 +377,7 @@ void LoveEQAudioProcessorEditor::updateTimeLensButtonLabel() {
     timeLensEnableButton.setButtonText(on?tr(u8"DÉSACTIVER","DISABLE"):tr("ACTIVER","ENABLE"));
 }
 void LoveEQAudioProcessorEditor::updateTimeLensVisibility() {
-    const bool visible=timeLensMode && activeTab!=2;
+    const bool visible=timeLensMode;
     timeLensEnableButton.setVisible(visible);
     for(int i=0;i<LoveEQAudioProcessor::timeStageCount;++i) {
         timeHzSlider[(size_t)i].setVisible(visible);
@@ -419,6 +423,10 @@ void LoveEQAudioProcessorEditor::initializeRelationship() {
     relationModeButton.setClickingTogglesState(true);
     relationModeButton.onClick=[this] {
         relationMode=relationModeButton.getToggleState();
+        if(relationMode && timeLensMode) {
+            timeLensMode=false;
+            timeLensModeButton.setToggleState(false,juce::dontSendNotification);
+        }
         if(relationMode && activeTab==2)selectTab(0);
         updateDnaControls();
         updateRelationshipControls();
@@ -526,16 +534,12 @@ void LoveEQAudioProcessorEditor::selectTab(int tab) {
 }
 void LoveEQAudioProcessorEditor::updateGraphicVisibility() {
     const bool graphic=activeTab==2;
-    if(graphic && timeLensMode) {
-        timeLensMode=false;
-        timeLensModeButton.setToggleState(false,juce::dontSendNotification);
-    }
     if(graphic && relationMode){
         relationMode=false;
         relationModeButton.setToggleState(false,juce::dontSendNotification);
     }
     for(auto& button:bandButtons)button.setVisible(!graphic && !timeLensMode);
-    for(auto& slider:graphicSliders)slider.setVisible(graphic);
+    for(auto& slider:graphicSliders)slider.setVisible(graphic && !timeLensMode);
     updateTimeLensVisibility();
     updateDnaControls();
     updateRelationshipControls();
@@ -926,7 +930,7 @@ void LoveEQAudioProcessorEditor::paint(juce::Graphics& g) {
     g.drawText("dBFS",meterBox.getX()+28,meterBox.getBottom()-45,49,14,juce::Justification::centred);
 
     // Graphic view replaces the eight tiles with sixteen real frequency faders.
-    if(activeTab==2) {
+    if(activeTab==2 && !timeLensMode) {
         g.setColour(juce::Colour(0xffb3c1c9));
         g.setFont(juce::Font(juce::FontOptions(9.f,juce::Font::bold)));
         for(int i=0;i<LoveEQAudioProcessor::graphicBandCount;++i) {
@@ -1022,7 +1026,7 @@ void LoveEQAudioProcessorEditor::paint(juce::Graphics& g) {
     }
     g.setColour(juce::Colour(0xff40505b));
     g.drawRoundedRectangle(bottomPanel.toFloat(),5.f,1.f);
-    if(activeTab==2) {
+    if(activeTab==2 && !timeLensMode) {
         g.setColour(juce::Colour(0xffe3c892));
         g.setFont(juce::Font(juce::FontOptions(15.f,juce::Font::bold)));
         g.drawText(tr("GRAPHIQUE - 16 BANDES","GRAPHIC - 16 BANDS"),43,bottomPanel.getY()+12,470,28,juce::Justification::centredLeft);
