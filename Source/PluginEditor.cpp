@@ -786,7 +786,36 @@ void LoveEQAudioProcessorEditor::paint(juce::Graphics& g) {
     }
     g.setColour(gold);
     g.strokePath(response,juce::PathStrokeType(2.4f));
-    if(activeTab==2) {
+    if(timeLensMode) {
+        // These are the actual *individual Bell responses*; the active DSP
+        // blends their filtered contributions over time, not the dB curves.
+        const std::array<juce::Colour,3> phaseColour {
+            juce::Colour(0xffe8bc75),juce::Colour(0xff83cbbd),juce::Colour(0xffbd9be6)
+        };
+        const int current=processor.timeLensPhase.load(std::memory_order_relaxed);
+        const double sampleRate=juce::jmax(8000.0,processor.getSampleRate());
+        for(int stage=0;stage<LoveEQAudioProcessor::timeStageCount;++stage) {
+            auto read=[this,stage](const juce::String& name) {
+                const auto* parameter=processor.parameters.getRawParameterValue(
+                    LoveEQAudioProcessor::timeStageId(stage,name));
+                return parameter?parameter->load():0.f;
+            };
+            const auto filter=loveeq::design(loveeq::Type::Bell,sampleRate,
+                                               read("hz"),read("gain"),read("q"));
+            juce::Path curve;
+            for(int x=0;x<graph.getWidth();x+=3) {
+                const float hz=20.f*std::pow(1000.f,(float)x/graph.getWidth());
+                const float db=(float)loveeq::magnitudeDb(filter,sampleRate,hz);
+                const float y=yForDb(db);
+                if(x==0)curve.startNewSubPath((float)graph.getX(),y);
+                else curve.lineTo((float)graph.getX()+x,y);
+            }
+            const bool selected=current==stage+1;
+            g.setColour(phaseColour[(size_t)stage].withAlpha(selected?0.95f:0.53f));
+            g.strokePath(curve,juce::PathStrokeType(selected?2.6f:1.6f));
+        }
+    }
+    if(!timeLensMode && activeTab==2) {
         for(int band=0;band<LoveEQAudioProcessor::graphicBandCount;++band) {
             const auto* gainV=processor.parameters.getRawParameterValue(LoveEQAudioProcessor::graphicId(band));
             if(!gainV) continue;
@@ -796,7 +825,7 @@ void LoveEQAudioProcessorEditor::paint(juce::Graphics& g) {
             g.fillEllipse(x-7.f,y-7.f,14.f,14.f);
             g.setColour(col);g.drawEllipse(x-7.f,y-7.f,14.f,14.f,1.6f);
         }
-    } else for(int band=0;band<8;++band) {
+    } else if(!timeLensMode) for(int band=0;band<8;++band) {
         const auto id=[band](const juce::String& name){return LoveEQAudioProcessor::bandId(band,name);};
         const auto* enabled=processor.parameters.getRawParameterValue(id("enabled"));
         const auto* hz=processor.parameters.getRawParameterValue(id("hz"));
