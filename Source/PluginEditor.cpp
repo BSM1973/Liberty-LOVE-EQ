@@ -794,6 +794,8 @@ void LoveEQAudioProcessorEditor::updateGraphicVisibility() {
     for(auto& slider:graphicSliders)slider.setVisible(graphic && !timeLensMode && !intentMode);
     updateTimeLensVisibility();
     updateIntentVisibility();
+    sketchButton.setEnabled(!intentMode);
+    grabButton.setEnabled(!intentMode);
     updateDnaControls();
     updateRelationshipControls();
     for(juce::Component* component : std::array<juce::Component*,13>{
@@ -1752,7 +1754,7 @@ void LoveEQAudioProcessorEditor::mouseUp(const juce::MouseEvent& e) {
     repaint();
 }
 void LoveEQAudioProcessorEditor::mouseDoubleClick(const juce::MouseEvent& e) {
-    if(sketchMode || activeTab==2 || !graph.contains(e.getPosition()))return;
+    if(intentMode || sketchMode || activeTab==2 || !graph.contains(e.getPosition()))return;
     int target=-1;
     for(int i=0;i<LoveEQAudioProcessor::bandCount;++i) {
         const auto* enabled=processor.parameters.getRawParameterValue(
