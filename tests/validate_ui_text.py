@@ -241,7 +241,7 @@ for name,a in headerModes.items():
 # Make all editor and preset-browser text use the same accent-capable typeface.
 for path in (root/"Source"/"PluginEditor.cpp",root/"Source"/"PresetBrowser.h"):
     text=path.read_text("utf-8")
-    if re.search(r'juce::FontOptions\\(\\d+(?:\\.\\d*)?f',text):
+    if re.search(r'juce::FontOptions\([0-9]',text):
         bad.append(f"{path.name}: an implicit typeface can lose French glyphs")
 
 # Fail CI if the most frequent 13-inch layout collision regressions reappear.
