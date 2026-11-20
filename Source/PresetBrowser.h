@@ -71,8 +71,8 @@ public:
         favoriteOnly.setButtonText(en?"Favorites":"Favoris");
         search.setTextToShowWhenEmpty(en?"Search presets, tags...":"Rechercher presets, tags...",juce::Colours::grey);
         presetName.setTextToShowWhenEmpty(en?"Preset name":"Nom du preset",juce::Colours::grey);
-        presetCategory.setTextToShowWhenEmpty(en?"User category":u8"Catégorie utilisateur",juce::Colours::grey);
-        presetTags.setTextToShowWhenEmpty(en?"Tags separated by commas":u8"Tags séparés par des virgules",juce::Colours::grey);
+        presetCategory.setTextToShowWhenEmpty(en?"User category":juce::String::fromUTF8(u8"Catégorie utilisateur"),juce::Colours::grey);
+        presetTags.setTextToShowWhenEmpty(en?"Tags separated by commas":juce::String::fromUTF8(u8"Tags séparés par des virgules"),juce::Colours::grey);
         rebuildFilters();
         filter();
     }
@@ -83,11 +83,11 @@ public:
         g.drawRoundedRectangle(area,10.f,1.3f);
         g.setColour(juce::Colour(0xfff2e4c9));
         g.setFont(juce::Font(juce::FontOptions("Arial",23.f,juce::Font::bold)));
-        g.drawText(en?"LOVE EQ - PRESET LIBRARY":u8"LOVE EQ - BIBLIOTHÈQUE DE PRESETS",
+        g.drawText(en?"LOVE EQ - PRESET LIBRARY":juce::String::fromUTF8(u8"LOVE EQ - BIBLIOTHÈQUE DE PRESETS"),
                    22,13,getWidth()-160,37,juce::Justification::centredLeft);
         g.setColour(juce::Colour(0xff95a6b0));
         g.setFont(juce::Font(juce::FontOptions("Arial",11.f,juce::Font::plain)));
-        g.drawText(en?"100 factory presets and your personal library":u8"100 presets d'usine et votre bibliothèque personnelle",
+        g.drawText(en?"100 factory presets and your personal library":juce::String::fromUTF8(u8"100 presets d'usine et votre bibliothèque personnelle"),
                    24,50,getWidth()-48,20,juce::Justification::centredLeft);
         g.setColour(juce::Colour(0xff3b4752));
         g.drawHorizontalLine(157,22.f,(float)getWidth()-22.f);
@@ -96,12 +96,12 @@ public:
         const int lower=getHeight()-179;
         g.setColour(juce::Colour(0xffe2c693));
         g.setFont(juce::Font(juce::FontOptions("Arial",11.5f,juce::Font::bold)));
-        g.drawText(en?"SAVE CURRENT SETTINGS AS A USER PRESET":u8"SAUVEGARDER LES RÉGLAGES ACTUELS DANS USER",
+        g.drawText(en?"SAVE CURRENT SETTINGS AS A USER PRESET":juce::String::fromUTF8(u8"SAUVEGARDER LES RÉGLAGES ACTUELS DANS USER"),
                    25,lower,550,21,juce::Justification::centredLeft);
         g.setColour(juce::Colour(0xff93a6b1));
         g.setFont(juce::Font(juce::FontOptions("Arial",10.2f,juce::Font::plain)));
         g.drawText(en?"NAME":"NOM",25,lower+26,245,14,juce::Justification::centredLeft);
-        g.drawText(en?"CATEGORY":u8"CATÉGORIE",getWidth()/2-109,lower+26,204,14,juce::Justification::centredLeft);
+        g.drawText(en?"CATEGORY":juce::String::fromUTF8(u8"CATÉGORIE"),getWidth()/2-109,lower+26,204,14,juce::Justification::centredLeft);
         g.drawText("TAGS",getWidth()-258,lower+26,205,14,juce::Justification::centredLeft);
         g.setColour(juce::Colour(0xff93a6b1));
         g.drawText(status,24,getHeight()-38,getWidth()-48,21,juce::Justification::centredLeft);
@@ -149,16 +149,16 @@ private:
         if(en)return raw;
         if(raw=="Vocals")return "Voix";
         if(raw=="Acoustic Guitar")return "Guitare acoustique";
-        if(raw=="Electric Guitar")return u8"Guitare électrique";
+        if(raw=="Electric Guitar")return juce::String::fromUTF8(u8"Guitare électrique");
         if(raw=="Bass")return "Basse";
         if(raw=="Kick and Snare")return "Grosse caisse et caisse claire";
         if(raw=="Drums and Percussion")return "Batterie et percussions";
         if(raw=="Piano and Keyboards")return "Piano et claviers";
-        if(raw=="Synthesizers")return u8"Synthétiseurs";
+        if(raw=="Synthesizers")return juce::String::fromUTF8(u8"Synthétiseurs");
         if(raw=="Orchestral Instruments")return "Instruments orchestraux";
         if(raw=="Dialogue and Podcast")return "Dialogue et podcast";
         if(raw=="Mix Bus")return "Bus de mixage";
-        if(raw=="Creative and Sound Design")return u8"Création sonore";
+        if(raw=="Creative and Sound Design")return juce::String::fromUTF8(u8"Création sonore");
         return raw;
     }
     void reloadUser() {
@@ -186,8 +186,8 @@ private:
         rebuildFilters();
         filter();
         status=user?
-            (en?"USER presets are stored on disk and survive DAW restarts.":u8"Les presets USER sont enregistrés sur disque et conservés après fermeture du DAW."):
-            (en?"Choose a factory preset or save your current settings to USER.":u8"Choisissez un preset d'usine ou sauvegardez vos réglages dans USER.");
+            (en?"USER presets are stored on disk and survive DAW restarts.":juce::String::fromUTF8(u8"Les presets USER sont enregistrés sur disque et conservés après fermeture du DAW.")):
+            (en?"Choose a factory preset or save your current settings to USER.":juce::String::fromUTF8(u8"Choisissez un preset d'usine ou sauvegardez vos réglages dans USER."));
         repaint();
     }
     void rebuildFilters() {
@@ -199,7 +199,7 @@ private:
                 activeCategories.addIfNotAlreadyThere(item.category);
         } else activeCategories=defaultCategories;
         category.clear(juce::dontSendNotification);
-        category.addItem(en?"All categories":u8"Toutes les catégories",1);
+        category.addItem(en?"All categories":juce::String::fromUTF8(u8"Toutes les catégories"),1);
         for(int i=0;i<activeCategories.size();++i)
             category.addItem(categoryLabel(activeCategories[i]),i+2);
         int match=1;
@@ -210,7 +210,7 @@ private:
         const juce::StringArray values {
             en?"All tags":"Tous les tags",en?"Dynamic":"Dynamique",
             "Mid/Side",en?"Warm":"Chaleur",en?"Bright":"Brillance",
-            "Mastering",en?"Creative":u8"Créatif",en?"Percussive":"Percussif","Dialogue"
+            "Mastering",en?"Creative":juce::String::fromUTF8(u8"Créatif"),en?"Percussive":"Percussif","Dialogue"
         };
         tag.addItemList(values,1);
         tag.setSelectedId(juce::jlimit(1,values.size(),selectedTag>0?selectedTag:1),juce::dontSendNotification);
@@ -245,7 +245,7 @@ private:
         if(which==2 && item.tags.containsIgnoreCase("dynamique"))return true;
         if(which==4 && item.tags.containsIgnoreCase("chaleur"))return true;
         if(which==5 && item.tags.containsIgnoreCase("brillance"))return true;
-        if(which==7 && item.tags.containsIgnoreCase(u8"créatif"))return true;
+        if(which==7 && item.tags.containsIgnoreCase(juce::String::fromUTF8(u8"créatif")))return true;
         return false;
     }
     juce::String rowName(int index) const {
@@ -264,7 +264,7 @@ private:
         if(factoryHasTag(index,4))out.add(en?"Warm":"Chaleur");
         if(factoryHasTag(index,5))out.add(en?"Bright":"Brillance");
         if(factoryHasTag(index,6))out.add("Mastering");
-        if(factoryHasTag(index,7))out.add(en?"Creative":u8"Créatif");
+        if(factoryHasTag(index,7))out.add(en?"Creative":juce::String::fromUTF8(u8"Créatif"));
         if(factoryHasTag(index,8))out.add(en?"Percussive":"Percussif");
         if(factoryHasTag(index,9))out.add("Dialogue");
         return out.joinIntoString(", ");
@@ -370,7 +370,7 @@ private:
         const auto file=loveeq::UserPresetLibrary::fileFor(name);
         if(file.existsAsFile() && file!=awaitingOverwrite) {
             awaitingOverwrite=file;
-            status=en?"Preset exists. Click SAVE again to replace it.":u8"Ce nom existe déjà. Cliquez encore sur SAUVER pour remplacer.";
+            status=en?"Preset exists. Click SAVE again to replace it.":juce::String::fromUTF8(u8"Ce nom existe déjà. Cliquez encore sur SAUVER pour remplacer.");
             repaint();return;
         }
         const bool favorite=selectedIndex>=0 && userTabActive &&
@@ -380,7 +380,7 @@ private:
                  file,name,presetCategory.getText(),presetTags.getText(),favorite,processor);
         awaitingOverwrite=juce::File();
         if(!ok) {
-            status=en?"Save failed. Check folder permissions.":u8"Échec de sauvegarde : vérifiez les autorisations du dossier.";
+            status=en?"Save failed. Check folder permissions.":juce::String::fromUTF8(u8"Échec de sauvegarde : vérifiez les autorisations du dossier.");
             repaint();return;
         }
         setTab(true);
@@ -391,7 +391,7 @@ private:
             selectedIndex=row;
             filter();
         }
-        status=en?"User preset saved to disk.":u8"Preset USER enregistré sur le disque.";
+        status=en?"User preset saved to disk.":juce::String::fromUTF8(u8"Preset USER enregistré sur le disque.");
         repaint();
     }
     void toggleFavorite() {
@@ -414,7 +414,7 @@ private:
             awaitingDelete=file;
             deleteButton.setButtonText(en?"CONFIRM DELETE":"CONFIRMER");
             status=en?"Click CONFIRM DELETE to permanently remove the preset.":
-                      u8"Cliquez sur CONFIRMER pour supprimer définitivement le preset.";
+                      juce::String::fromUTF8(u8"Cliquez sur CONFIRMER pour supprimer définitivement le preset.");
             repaint();return;
         }
         const bool ok=loveeq::UserPresetLibrary::remove(userPresets[(size_t)selectedIndex]);
@@ -425,7 +425,7 @@ private:
         }
         reloadUser();
         deleteButton.setButtonText(en?"DELETE":"SUPPRIMER");
-        status=en?"User preset deleted.":u8"Preset USER supprimé.";
+        status=en?"User preset deleted.":juce::String::fromUTF8(u8"Preset USER supprimé.");
         repaint();
     }
 };

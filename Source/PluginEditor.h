@@ -2,6 +2,7 @@
 #include <JuceHeader.h>
 #include "PluginProcessor.h"
 #include "PresetBrowser.h"
+#include "Utf8Text.h"
 #include "HarmonicDNA.h"
 #include "CurveLab.h"
 #include <vector>
@@ -51,9 +52,9 @@ private:
     };
     LoveEQAudioProcessor& processor;
     std::array<BandTileButton,8> bandButtons;
-    juce::TextButton tabParam {u8"PARAMÉTRIQUE"}, tabDynamic {"DYNAMIQUE"}, tabGraphic {"GRAPHIQUE"};
+    juce::TextButton tabParam {juce::String::fromUTF8(u8"PARAMÉTRIQUE")}, tabDynamic {"DYNAMIQUE"}, tabGraphic {"GRAPHIQUE"};
     juce::TextButton holdButton {"MAINTIEN PIC"}, freezeButton {"FIGER"};
-    juce::TextButton dnaButton {"HARMONIC DNA"}, dnaFocusButton {"CIBLER"}, dnaCutButton {"ATTÉNUER"};
+    juce::TextButton dnaButton {"HARMONIC DNA"}, dnaFocusButton {"CIBLER"}, dnaCutButton {juce::String::fromUTF8(u8"ATTÉNUER")};
     juce::TextButton relationModeButton {"RELATION EQ"},relationSuggestButton {"PROPOSER"},
                      relationApplyButton {"ACTIVER"};
     juce::ComboBox relationRoleBox,relationPriorityBox,relationGroupBox;
@@ -82,8 +83,8 @@ private:
     // LOVE INTENT: 4 musical goals, 3 explanatory suggestions, reversible A/B.
     juce::TextButton intentModeButton {"LOVE INTENT"},intentAnalyzeButton {"ANALYSER"};
     std::array<juce::TextButton,3> intentVariantButtons {{
-        juce::TextButton("DOUX"),juce::TextButton(u8"ÉQUILIBRÉ"),
-        juce::TextButton(u8"AFFIRMÉ")
+        juce::TextButton("DOUX"),juce::TextButton(juce::String::fromUTF8(u8"ÉQUILIBRÉ")),
+        juce::TextButton(juce::String::fromUTF8(u8"AFFIRMÉ"))
     }};
     juce::TextButton intentOriginalButton {"A ORIGINAL"},intentPreviewButton {"B PROPOSITION"},
                      intentCommitButton {"CONSERVER"},intentCancelButton {"ANNULER"};
@@ -111,9 +112,9 @@ private:
     void restoreIntentBaseline();
     void closeIntentView();
     // EQ MATCH: capture two real signals, compare tonality, optionally apply.
-    juce::TextButton matchModeButton {"EQ MATCH"},matchReferenceButton {"CAPTURER RÉF"},
+    juce::TextButton matchModeButton {"EQ MATCH"},matchReferenceButton {juce::String::fromUTF8(u8"CAPTURER RÉF")},
         matchSourceButton {"CAPTURER SOURCE"},matchProposeButton {"PROPOSER"},
-        matchPreviewButton {"B ÉCOUTER"},matchCommitButton {"CONSERVER"},
+        matchPreviewButton {juce::String::fromUTF8(u8"B ÉCOUTER")},matchCommitButton {"CONSERVER"},
         matchCancelButton {"ANNULER"};
     juce::Slider matchAmountSlider;
     std::unique_ptr<SliderAttachment> matchAmountAttachment;
@@ -175,7 +176,9 @@ private:
     void grabSpectrumPeak();
     int activeTab=0;
     bool english=false;
-    juce::String tr(const char* fr,const char* en) const {return english?juce::String(en):juce::String(fr);}
+    juce::String tr(const char* fr,const char* en) const {
+        return loveeq::i18n::translate(english,fr,en);
+    }
     void updateGraphicVisibility();
     std::array<float,1025> heldPre {}, heldPost {};
     void selectTab(int tab);

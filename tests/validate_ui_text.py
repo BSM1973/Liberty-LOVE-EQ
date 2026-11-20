@@ -39,6 +39,34 @@ for path in sources:
         bad.append(f"{path.relative_to(root)}: replace escaped accent with real UTF-8")
 browser=(root/"Source"/"PresetBrowser.h").read_text("utf-8")
 userLibrary=(root/"Source"/"UserPresetLibrary.h").read_text("utf-8")
+
+# JUCE 8, C++17: juce::String(const char*) decodes ASCII only, not UTF-8.
+# This was the real source of the screenshot's PARAMÃ‰TRIQUE/FRÃ‰QUENCE.
+# Validate the conversion boundary, not just the .cpp file's UTF-8 bytes.
+if 'loveeq::i18n::translate(english,fr,en)' not in header:
+    bad.append("French translation must use explicit UTF-8 conversion in JUCE")
+if 'juce::String::fromUTF8(english?en:fr)' in header:
+    pass  # An explicit direct alternative is correct too.
+for name in ("PluginEditor.h","PresetBrowser.h"):
+    body=(root/"Source"/name).read_text("utf-8")
+    for m in re.finditer(r'u8"[^"\n]*"',body):
+        if 'juce::String::fromUTF8(' not in body[max(0,m.start()-29):m.start()]:
+            bad.append(f"{name}: UTF-8 literal bypasses explicit JUCE conversion")
+for pattern in (r'\.setButtonText\(\s*u8"', r'\.setTooltip\(\s*u8"',
+                r'\.drawText\(\s*u8"',r'\.addItem\(\s*u8"',
+                r'juce::String\(\s*u8"'):
+    if re.search(pattern,ui):
+        bad.append(f"Implicit JUCE ASCII conversion in editor: {pattern}")
+for requirement in (
+    'languageBox.addItem("FR",1)', 'languageBox.addItem("EN",2)',
+    'juce::String::fromUTF8(english?explanationsEn',
+    'juce::String::fromUTF8(u8"Sélectionner la bande',
+    'juce::String::fromUTF8(u8"Préparer la fréquence'):
+    if requirement not in ui:
+        bad.append(f"Unicode/UI regression: {requirement}")
+if not (root/"tests"/"juce_utf8_runtime_test.cpp").exists():
+    bad.append("JUCE native decoding test is missing")
+
 if not all(x in ui+browser for x in ("BIBLIOTHÈQUE","ÉCHELLE","FRÉQUENCE","CATÉGORIE","É")):
     bad.append("Real accented UI strings missing")
 for required in ('"USER"','"SAUVER DANS USER"','"Catégorie utilisateur"'):

@@ -212,8 +212,8 @@ LoveEQAudioProcessorEditor::LoveEQAudioProcessorEditor(LoveEQAudioProcessor& p)
  : AudioProcessorEditor(&p),processor(p) {
     setLookAndFeel(&theme);
     english=processor.getUiLanguage()=="en";
-    languageBox.addItem(u8"FRANÇAIS",1);
-    languageBox.addItem("ENGLISH",2);
+    languageBox.addItem("FR",1);
+    languageBox.addItem("EN",2);
     languageBox.setSelectedId(english?2:1,juce::dontSendNotification);
     languageBox.onChange=[this]{
         english=languageBox.getSelectedId()==2;
@@ -232,7 +232,7 @@ LoveEQAudioProcessorEditor::LoveEQAudioProcessorEditor(LoveEQAudioProcessor& p)
         b.processor=&processor;
         b.band=i;
         b.setButtonText("");
-        b.setTooltip(u8"Sélectionner la bande " + juce::String(i+1));
+        b.setTooltip(juce::String::fromUTF8(u8"Sélectionner la bande ") + juce::String(i+1));
         b.setColour(juce::TextButton::buttonColourId, juce::Colours::transparentBlack);
         b.setColour(juce::TextButton::buttonOnColourId, juce::Colours::transparentBlack);
         b.setColour(juce::TextButton::textColourOffId,juce::Colour(bandColours[(size_t)i]));
@@ -261,7 +261,7 @@ LoveEQAudioProcessorEditor::LoveEQAudioProcessorEditor(LoveEQAudioProcessor& p)
     tabDynamic.onClick=[this,closeLens]{closeMatchView();closeIntentView();closeLens();selectTab(1);};
     tabGraphic.setEnabled(true);
     tabGraphic.onClick=[this,closeLens]{closeMatchView();closeIntentView();closeLens();selectTab(2);};
-    tabGraphic.setTooltip(u8"16 bandes graphiques réellement traitées dans le moteur audio");
+    tabGraphic.setTooltip(juce::String::fromUTF8(u8"16 bandes graphiques réellement traitées dans le moteur audio"));
     holdButton.setClickingTogglesState(true);
     holdButton.onClick=[this]{holdSpectrum=holdButton.getToggleState();
         if(!holdSpectrum){heldPre.fill(-96.f);heldPost.fill(-96.f);}
@@ -296,8 +296,8 @@ LoveEQAudioProcessorEditor::LoveEQAudioProcessorEditor(LoveEQAudioProcessor& p)
     initializeTimeLens();
     initializeIntent();
     initializeMatch();
-    dnaFocusButton.setTooltip(u8"Préparer la fréquence non harmonique sans modifier l’audio. ATTÉNUER valide la coupe.");
-    dnaCutButton.setTooltip(u8"Appliquer une coupe de -2 dB après votre confirmation.");
+    dnaFocusButton.setTooltip(juce::String::fromUTF8(u8"Préparer la fréquence non harmonique sans modifier l’audio. ATTÉNUER valide la coupe."));
+    dnaCutButton.setTooltip(juce::String::fromUTF8(u8"Appliquer une coupe de -2 dB après votre confirmation."));
     updateDnaControls();
     for(auto* b:{&enabledButton,&soloButton,&dynamicButton}) show(*b);
     for(auto* b:{&typeBox,&channelBox,&slopeBox}) show(*b);
@@ -1707,7 +1707,7 @@ void LoveEQAudioProcessorEditor::paint(juce::Graphics& g) {
             g.setColour(juce::Colour(0xffe7edf0));
             g.setFont(juce::Font(juce::FontOptions("Arial",11.5f,juce::Font::bold)));
             g.drawText(juce::String(i+1)+" / "+
-                juce::String(english?explanationsEn[(size_t)safeGoal][(size_t)i]:
+                juce::String::fromUTF8(english?explanationsEn[(size_t)safeGoal][(size_t)i]:
                               explanationsFr[(size_t)safeGoal][(size_t)i]),
                 x+10,599,330,20,juce::Justification::centredLeft);
             g.setColour(juce::Colour(0xffa3b4be));

@@ -32,6 +32,7 @@ target_sources(LoveEQ PRIVATE
     Source/MatchCore.h
     Source/FactoryPresets.h
     Source/PresetBrowser.h
+    Source/Utf8Text.h
     Source/UserPresetLibrary.h
     Source/PluginProcessor.h
     Source/PluginProcessor.cpp
@@ -101,3 +102,14 @@ add_executable(loveeq_match_test tests/match_test.cpp)
 target_compile_features(loveeq_match_test PRIVATE cxx_std_17)
 target_include_directories(loveeq_match_test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/Source)
 add_test(NAME loveeq_match COMMAND loveeq_match_test)
+
+# Unlike the independent byte-level test, this test runs the real JUCE String
+# conversion. A success here proves the labels won't become PARAMÃ‰TRIQUE.
+add_executable(loveeq_juce_utf8_test tests/juce_utf8_runtime_test.cpp)
+target_include_directories(loveeq_juce_utf8_test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/Source)
+target_compile_features(loveeq_juce_utf8_test PRIVATE cxx_std_17)
+target_compile_definitions(loveeq_juce_utf8_test PRIVATE JUCE_USE_CURL=0)
+target_link_libraries(loveeq_juce_utf8_test PRIVATE
+    juce::juce_core
+    juce::juce_recommended_config_flags)
+add_test(NAME loveeq_juce_utf8 COMMAND loveeq_juce_utf8_test)
