@@ -205,7 +205,7 @@ void LoveEQAudioProcessorEditor::BandTileButton::paintButton(
     g.setColour(colour);
     g.setFont(juce::Font(juce::FontOptions("Arial",11.f,juce::Font::bold)));
     const juce::String gainText=(db>0.05f?"+":"")+juce::String(db,1)+" dB";
-    g.drawFittedText(gainText,9,getHeight()-24,getWidth()-16,18,
+    g.drawFittedText(gainText,9,getHeight()-22,getWidth()-16,16,
                      juce::Justification::centredRight,1,0.90f);
 }
 LoveEQAudioProcessorEditor::LoveEQAudioProcessorEditor(LoveEQAudioProcessor& p)
@@ -1586,10 +1586,8 @@ void LoveEQAudioProcessorEditor::paint(juce::Graphics& g) {
                "Three proposals capped at +/- 3 dB. Audition A/B before keeping."):
             intentMessage;
         g.drawFittedText(description,44,544,740,26,juce::Justification::centredLeft,1,0.87f);
-        g.setColour(juce::Colour(0xffe2c89b));
-        g.setFont(juce::Font(juce::FontOptions("Arial",10.f,juce::Font::bold)));
-        g.drawText(tr(u8"INTENSITÉ","INTENSITY"),810,543,100,17,
-                   juce::Justification::centredLeft);
+        // The intensity slider has its own value display and tooltip.
+        // No title is painted over the slider's interactive thumb.
     } else if(timeLensMode) {
         const auto stage=(int)processor.timeLensPhase.load(std::memory_order_relaxed);
         const auto enabled=processor.parameters.getRawParameterValue("time_lens_enabled");

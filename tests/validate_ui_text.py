@@ -244,6 +244,12 @@ for path in (root/"Source"/"PluginEditor.cpp",root/"Source"/"PresetBrowser.h"):
     if re.search(r'juce::FontOptions\([0-9]',text):
         bad.append(f"{path.name}: an implicit typeface can lose French glyphs")
 
+# Exact text bounds should not overlap either, not just child controls.
+if 'g.drawFittedText(gainText,9,getHeight()-22,getWidth()-16,16,' not in ui:
+    bad.append("Band tile gain label overlaps frequency or falls outside the tile")
+if 'g.drawText(tr(u8"INTENSITÉ","INTENSITY"),810,543,100,17,' in ui:
+    bad.append("LOVE INTENT intensity label paints under its slider")
+
 # Fail CI if the most frequent 13-inch layout collision regressions reappear.
 layout_contract={
     "header_browse":(660,37,102,32),
