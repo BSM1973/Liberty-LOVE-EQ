@@ -157,7 +157,7 @@ for name in ("intentModeButton.setBounds(", "intentGoalBox.setBounds(",
              "void LoveEQAudioProcessorEditor::closeIntentView("):
     if name not in ui:
         bad.append(f"LOVE INTENT UI feature missing: {name}")
-if 'if(intentOriginalValid)restoreIntentBaseline();setLookAndFeel(nullptr);' not in ui:
+if 'if(intentOriginalValid)restoreIntentBaseline();if(matchBaselineValid)restoreMatchBaseline();setLookAndFeel(nullptr);' not in ui:
     bad.append("LOVE INTENT must restore an uncommitted audition when the editor closes")
 for name in ('"intent_enabled"', '"intent_amount"', "intentRuntime[(size_t)i]",
              "intentWet.getNextValue()", "intentDose.getNextValue()",
