@@ -95,7 +95,6 @@ inline Result analyze(const float* magnitudes,int count,double sampleRate,int ff
     // Try f0 hypotheses derived from observed peaks divided by harmonic number,
     // including missing-fundamental candidates, not only the loudest peak.
     double bestScore=-1.0,bestHz=0.0;
-    int bestHits=0;
     const int sourceCount=std::min(36,(int)peaks.size());
     for(int p=0;p<sourceCount;++p) {
         for(int divisor=1;divisor<=8;++divisor) {
@@ -117,7 +116,7 @@ inline Result analyze(const float* magnitudes,int count,double sampleRate,int ff
             score*=1.0+0.055*std::min(6,hits);
             if(nearPeak(f0))score+=0.26;
             if(oddHits>=2)score+=0.18;
-            if(score>bestScore) {bestScore=score;bestHz=f0;bestHits=hits;}
+            if(score>bestScore) {bestScore=score;bestHz=f0;}
         }
     }
     if(bestScore<=0.0)return result;
