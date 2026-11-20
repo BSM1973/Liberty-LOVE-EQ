@@ -28,7 +28,7 @@ int main() {
     const int guitarId=reg.reserve(),voiceId=reg.reserve(),bassId=reg.reserve();
     if(guitarId<0||voiceId<0||bassId<0)return failed("Registry allocation failed");
     std::array<float,bandCount> own{},voice{},bass{};
-    own[3]=0.11f;voice[3]=0.09f;
+    own[4]=0.11f;voice[4]=0.09f;
     own[9]=0.12f;voice[9]=0.09f;
     bass[9]=0.2f;
     reg.publish(guitarId,1,guitar,own);
@@ -38,7 +38,7 @@ int main() {
     if(!current.valid||std::abs(current.rms[9]-0.12f)>0.00001f)
         return failed("Own instance snapshot incorrect");
     const auto priority=reg.aggregate(1,Role::voice,guitarId);
-    if(!priority.valid||priority.count!=1||std::abs(priority.rms[3]-0.09f)>0.00001f)
+    if(!priority.valid||priority.count!=1||std::abs(priority.rms[4]-0.09f)>0.00001f)
         return failed("Priority role not connected");
     if(reg.aggregate(2,Role::voice,guitarId).valid)
         return failed("Groups leaked across each other");
