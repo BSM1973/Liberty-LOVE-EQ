@@ -1255,7 +1255,7 @@ void LoveEQAudioProcessorEditor::paint(juce::Graphics& g) {
     g.drawLine(39.f,29.f,39.f,47.f,2.f);
     g.drawLine(39.f,47.f,53.f,47.f,2.f);
     g.setColour(juce::Colour(0xffe8dec9));
-    g.setFont(juce::Font(juce::FontOptions(29.f,juce::Font::bold)));
+    g.setFont(juce::Font(juce::FontOptions("Arial",29.f,juce::Font::bold)));
     g.drawText("LOVE EQ",76,16,252,36,juce::Justification::centredLeft);
     g.setColour(juce::Colour(0xff96a1a9));
     g.setFont(juce::Font(juce::FontOptions("Arial",11.5f,juce::Font::plain)));
@@ -1284,7 +1284,7 @@ void LoveEQAudioProcessorEditor::paint(juce::Graphics& g) {
     g.drawRoundedRectangle(spectrumPanel.toFloat(),7.f,1.f);
     g.drawHorizontalLine(188,(float)spectrumPanel.getX(),(float)spectrumPanel.getRight());
     g.setColour(juce::Colour(0xff778994));
-    g.setFont(juce::Font(juce::FontOptions(10.f,juce::Font::bold)));
+    g.setFont(juce::Font(juce::FontOptions("Arial",10.f,juce::Font::bold)));
     g.drawText(tr("SPECTRE","SPECTRUM"),42,156,73,18,juce::Justification::centredLeft);
     g.drawText(tr(u8"RÉPONSE - dB","RESPONSE - dB"),graph.getX(),190,154,16,juce::Justification::centredLeft);
     g.drawText(tr("ANALYSEUR FFT 2048","FFT ANALYZER 2048"),graph.getRight()-196,190,189,16,juce::Justification::centredRight);
@@ -1432,7 +1432,7 @@ void LoveEQAudioProcessorEditor::paint(juce::Graphics& g) {
         g.fillEllipse(x-radius,y-radius,2.f*radius,2.f*radius);
         g.setColour(col);
         g.drawEllipse(x-radius,y-radius,2.f*radius,2.f*radius,band==selectedBand?2.3f:1.5f);
-        g.setFont(juce::Font(juce::FontOptions(11.f,juce::Font::bold)));
+        g.setFont(juce::Font(juce::FontOptions("Arial",11.f,juce::Font::bold)));
         g.drawText(juce::String(band+1),(int)x-10,(int)y-10,20,20,juce::Justification::centred);
     }
     if(relationMode && !intentMode && !matchMode && relationProposedHz>=65.f && relationProposedHz<=8000.f) {
@@ -1500,7 +1500,7 @@ void LoveEQAudioProcessorEditor::paint(juce::Graphics& g) {
     }
     g.restoreState();
     g.setColour(juce::Colour(0xff91a0a9));
-    g.setFont(juce::Font(juce::FontOptions(10.f)));
+    g.setFont(juce::Font(juce::FontOptions("Arial",10.f,juce::Font::plain)));
     for(float f:freqs) {
         const auto label=f>=1000.f?juce::String((int)(f/1000.f))+"k":juce::String((int)f);
         g.drawText(label,(int)xForHz(f)-20,graph.getBottom()+6,40,16,juce::Justification::centred);
@@ -1521,7 +1521,7 @@ void LoveEQAudioProcessorEditor::paint(juce::Graphics& g) {
     // Two real peak meters (mono peak per bus; no fake L/R subdivisions).
     g.setColour(juce::Colour(0xff182229));
     g.fillRoundedRectangle(meterBox.toFloat(),4.f);
-    g.setFont(juce::Font(juce::FontOptions(10.f,juce::Font::bold)));
+    g.setFont(juce::Font(juce::FontOptions("Arial",10.f,juce::Font::bold)));
     const auto meter=[&](float level,float held,int x,const juce::String& caption) {
         g.setColour(juce::Colour(0xffa5b4bc));
         g.drawText(caption,x-12,meterBox.getY()+8,38,18,juce::Justification::centred);
@@ -1544,7 +1544,7 @@ void LoveEQAudioProcessorEditor::paint(juce::Graphics& g) {
             g.drawHorizontalLine((int)(top+mh-heldHeight),(float)x-1.f,(float)x+13.f);
         }
         g.setColour(juce::Colour(0xffb5c2c9));
-        g.setFont(juce::Font(juce::FontOptions(9.f)));
+        g.setFont(juce::Font(juce::FontOptions("Arial",9.f,juce::Font::plain)));
         g.drawText(juce::String(dbHeld,0),x-12,(int)(top+mh+5),38,17,juce::Justification::centred);
     };
     meter(processor.peakIn.load(),processor.peakHoldIn.load(),meterBox.getX()+20,"IN");
@@ -1555,7 +1555,7 @@ void LoveEQAudioProcessorEditor::paint(juce::Graphics& g) {
     // Graphic view replaces the eight tiles with sixteen real frequency faders.
     if(activeTab==2 && !timeLensMode && !intentMode && !matchMode) {
         g.setColour(juce::Colour(0xffb3c1c9));
-        g.setFont(juce::Font(juce::FontOptions(9.f,juce::Font::bold)));
+        g.setFont(juce::Font(juce::FontOptions("Arial",9.f,juce::Font::bold)));
         for(int i=0;i<LoveEQAudioProcessor::graphicBandCount;++i) {
             const auto bounds=graphicSliders[(size_t)i].getBounds();
             const double hz=LoveEQAudioProcessor::graphicHz[(size_t)i];
@@ -1648,10 +1648,10 @@ void LoveEQAudioProcessorEditor::paint(juce::Graphics& g) {
     g.drawRoundedRectangle(bottomPanel.toFloat(),5.f,1.f);
     if(activeTab==2 && !timeLensMode && !intentMode && !matchMode) {
         g.setColour(juce::Colour(0xffe3c892));
-        g.setFont(juce::Font(juce::FontOptions(15.f,juce::Font::bold)));
+        g.setFont(juce::Font(juce::FontOptions("Arial",15.f,juce::Font::bold)));
         g.drawText(tr("GRAPHIQUE - 16 BANDES","GRAPHIC - 16 BANDS"),43,bottomPanel.getY()+12,470,28,juce::Justification::centredLeft);
         g.setColour(juce::Colour(0xffa7b7c0));
-        g.setFont(juce::Font(juce::FontOptions(12.f)));
+        g.setFont(juce::Font(juce::FontOptions("Arial",12.f,juce::Font::plain)));
         g.drawText(tr(u8"16 filtres bell réels avec gain indépendant de -18 à +18 dB",
                       "16 real bell filters with independent gain from -18 to +18 dB"),
                       43,bottomPanel.getY()+47,bottomPanel.getWidth()-60,25,juce::Justification::centredLeft);
@@ -1751,7 +1751,7 @@ void LoveEQAudioProcessorEditor::paint(juce::Graphics& g) {
     const int split2=split1+287;
     g.drawVerticalLine(split1,(float)bottomPanel.getY(),(float)bottomPanel.getBottom());
     g.drawVerticalLine(split2,(float)bottomPanel.getY(),(float)bottomPanel.getBottom());
-    g.setFont(juce::Font(juce::FontOptions(10.f,juce::Font::bold)));
+    g.setFont(juce::Font(juce::FontOptions("Arial",10.f,juce::Font::bold)));
     g.setColour(juce::Colour(bandColours[(size_t)selectedBand]));
     g.fillEllipse(37.f,(float)bottomPanel.getY()+17.f,6.f,6.f);
     g.setColour(juce::Colour(0xffc6d0d7));
@@ -1760,7 +1760,7 @@ void LoveEQAudioProcessorEditor::paint(juce::Graphics& g) {
     g.drawText(relationMode?"RELATIONSHIP EQ":dnaEnabled?"HARMONIC DNA":"EQ MATCH",
                split2+12,bottomPanel.getY()+(relationMode?7:9),220,relationMode?17:20,juce::Justification::centredLeft);
     g.setColour(juce::Colour(0xff8496a0));
-    g.setFont(juce::Font(juce::FontOptions(9.f)));
+    g.setFont(juce::Font(juce::FontOptions("Arial",9.f,juce::Font::plain)));
     const std::array<juce::String,6> labels {
         tr("FILTRE","FILTER"),tr(u8"FRÉQUENCE","FREQUENCY"),
         "GAIN",tr("Q / LARGEUR","Q / WIDTH"),tr("CANAL","CHANNEL"),tr("PENTE","SLOPE")
@@ -1836,7 +1836,7 @@ void LoveEQAudioProcessorEditor::paint(juce::Graphics& g) {
 
     }
     g.setColour(juce::Colour(0xffaebbc3));
-    g.setFont(juce::Font(juce::FontOptions(10.f)));
+    g.setFont(juce::Font(juce::FontOptions("Arial",10.f,juce::Font::plain)));
     g.drawText(tr(u8"ENTRÉE","INPUT"),footerPanel.getX()+3,footerPanel.getY()+10,53,15,juce::Justification::centredLeft);
     g.drawText(tr("SORTIE","OUTPUT"),footerPanel.getX()+214,footerPanel.getY()+10,53,15,juce::Justification::centredLeft);
     g.drawText(tr(u8"LOVE EQ - PRÊT POUR LE MIXAGE","LOVE EQ - READY FOR MIXING"),footerPanel.getX()+470,footerPanel.getY()+10,335,16,juce::Justification::centredLeft);

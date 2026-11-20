@@ -82,11 +82,11 @@ public:
         g.setColour(juce::Colour(0xffc5a56d));
         g.drawRoundedRectangle(area,10.f,1.3f);
         g.setColour(juce::Colour(0xfff2e4c9));
-        g.setFont(juce::Font(juce::FontOptions(23.f,juce::Font::bold)));
+        g.setFont(juce::Font(juce::FontOptions("Arial",23.f,juce::Font::bold)));
         g.drawText(en?"LOVE EQ - PRESET LIBRARY":u8"LOVE EQ - BIBLIOTHÈQUE DE PRESETS",
                    22,13,getWidth()-160,37,juce::Justification::centredLeft);
         g.setColour(juce::Colour(0xff95a6b0));
-        g.setFont(juce::Font(juce::FontOptions(11.f)));
+        g.setFont(juce::Font(juce::FontOptions("Arial",11.f,juce::Font::plain)));
         g.drawText(en?"100 factory presets and your personal library":u8"100 presets d'usine et votre bibliothèque personnelle",
                    24,50,getWidth()-48,20,juce::Justification::centredLeft);
         g.setColour(juce::Colour(0xff3b4752));
