@@ -23,7 +23,7 @@ for path in sources:
 ui = (root / "Source" / "PluginEditor.cpp").read_text("utf-8")
 header = (root / "Source" / "PluginEditor.h").read_text("utf-8")
 for token in ('"LOVE EQ"', '"by Liberty Music Software"', 'setResizable(false,false)',
-              'spectrumPanel=', 'bottomPanel=', 'footerPanel=', 'tabGraphic.onClick=[this]{selectTab(2)', 'languageBox.setBounds(', 'browserButton.setBounds(', 'peakResetButton.setBounds('):
+              'spectrumPanel=', 'bottomPanel=', 'footerPanel=', 'tabGraphic.onClick=[this,closeLens]{closeLens();selectTab(2)', 'languageBox.setBounds(', 'browserButton.setBounds(', 'peakResetButton.setBounds('):
     if token not in ui:
         bad.append(f"UI contract missing: {token}")
 for token in ("juce::TextButton tabParam", "juce::TextButton holdButton", "juce::ComboBox languageBox", "std::unique_ptr<LoveEQPresetBrowser>"):
@@ -103,6 +103,11 @@ for token in ('"relationship_role"','"relationship_priority"','"relationship_gro
         bad.append(f"Relationship DSP integration missing: {token}")
 
 
+# Opening TIME LENS must not silently switch the parametric/graphic DSP.
+if "if(requested && activeTab==2)selectTab(0)" in ui:
+    bad.append("TIME LENS view must not change the active EQ engine")
+if 'for(auto& slider:graphicSliders)slider.setVisible(graphic && !timeLensMode)' not in ui:
+    bad.append("Graphic sliders must hide when TIME LENS takes over their panel")
 # TIME LENS: editable three-stage processing and a dedicated non-overlapping view.
 for name in ("timeLensModeButton.setBounds(", "timeLensEnableButton.setBounds(",
              "timeThresholdSlider.setBounds(", "timeAttackSlider.setBounds(",
