@@ -18,7 +18,7 @@ int main() {
         const juce::String decoded=loveeq::i18n::utf8(label);
         if(std::strcmp(decoded.toRawUTF8(),label)!=0 ||
            decoded.contains(juce::String::fromUTF8(u8"Ã")) ||
-           decoded.containsChar((juce_wchar)0xfffd)) {
+           decoded.containsChar(static_cast<juce::juce_wchar>(0xfffd))) {
             std::cerr<<"JUCE incorrectly decoded a French UI label\n";
             return 1;
         }
