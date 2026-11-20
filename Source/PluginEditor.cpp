@@ -376,6 +376,15 @@ void LoveEQAudioProcessorEditor::updateRelationshipControls() {
     const bool guarded=dnaEnabled && dnaResult.reliable && relationSuggested &&
         !loveeq::relationship::isProtected(relationProposedHz,dnaResult.fundamentalHz);
     relationApplyButton.setEnabled(shown && (enabled || (valid && guarded)));
+    relationSuggestButton.setTooltip(relationStatus);
+    relationApplyButton.setTooltip(enabled?
+        tr(u8"Arrêter la réduction dynamique sans changer les autres bandes",
+           "Stop dynamic reduction without changing other EQ bands"):
+        !dnaEnabled || !dnaResult.reliable?
+        tr(u8"Harmonic DNA doit identifier une fondamentale fiable avant toute correction",
+           "Harmonic DNA must identify a reliable fundamental before applying"):
+        tr(u8"Appliquer la correction dynamique proposée, maximum 3 dB",
+           "Apply the proposed dynamic reduction, maximum 3 dB"));
 }
 void LoveEQAudioProcessorEditor::proposeRelationship() {
     relationSuggested=false;
@@ -1236,7 +1245,7 @@ void LoveEQAudioProcessorEditor::updateDnaControls() {
 void LoveEQAudioProcessorEditor::updateHarmonicDNA() {
     const auto sampleRate=processor.getSampleRate();
     if(sampleRate<8000.0) {
-        dnaResult={};dnaTargetArmed=false;updateDnaControls();return;
+        dnaResult={};dnaTargetArmed=false;updateDnaControls();updateRelationshipControls();return;
     }
     const unsigned int end=processor.scopeIndex.load(std::memory_order_acquire);
     constexpr unsigned int fftSize=8192;
@@ -1258,6 +1267,7 @@ void LoveEQAudioProcessorEditor::updateHarmonicDNA() {
           std::max(20.f,0.045f*dnaArmedHz)))dnaTargetArmed=false;
     dnaResult=updated;
     updateDnaControls();
+    updateRelationshipControls();
 }
 void LoveEQAudioProcessorEditor::focusDnaCandidate() {
     if(activeTab==2 || !dnaEnabled || !dnaResult.reliable || dnaResult.inspectCount==0)return;
