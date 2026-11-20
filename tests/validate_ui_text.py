@@ -63,6 +63,19 @@ for token in ('sketchButton.setBounds(', 'notesButton.setBounds(', 'grabButton.s
     if token not in ui:
         bad.append(f"Curve Lab UI control missing: {token}")
 
+
+# Harmonic DNA is a measured feature and must be visible, not an inert mockup.
+for token in ('dnaButton.setBounds(', 'dnaFocusButton.setBounds(', 'dnaCutButton.setBounds(',
+              'void LoveEQAudioProcessorEditor::updateHarmonicDNA(',
+              'void LoveEQAudioProcessorEditor::focusDnaCandidate(',
+              'void LoveEQAudioProcessorEditor::applyDnaSuggestion(',
+              'loveeq::dna::analyze('):
+    if token not in ui:
+        bad.append(f"Harmonic DNA control or analysis missing: {token}")
+processor_h=(root/"Source"/"PluginProcessor.h").read_text("utf-8")
+if "scopeSize = 8192;" not in processor_h:
+    bad.append("Harmonic DNA requires a real 8192-sample audio analyzer history")
+
 # Fail CI if the most frequent 13-inch layout collision regressions reappear.
 layout_contract={
     "header_browse":(660,37,102,32),

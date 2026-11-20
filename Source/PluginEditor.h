@@ -2,6 +2,7 @@
 #include <JuceHeader.h>
 #include "PluginProcessor.h"
 #include "PresetBrowser.h"
+#include "HarmonicDNA.h"
 #include "CurveLab.h"
 #include <vector>
 
@@ -45,6 +46,7 @@ private:
     std::array<juce::TextButton,8> bandButtons;
     juce::TextButton tabParam {u8"PARAMÉTRIQUE"}, tabDynamic {"DYNAMIQUE"}, tabGraphic {"GRAPHIQUE"};
     juce::TextButton holdButton {"MAINTIEN PIC"}, freezeButton {"FIGER"};
+    juce::TextButton dnaButton {"HARMONIC DNA"}, dnaFocusButton {"CIBLER"}, dnaCutButton {"ATTÉNUER"};
     juce::TextButton sketchButton {"DESSIN"}, notesButton {"NOTES"}, grabButton {"CAPTER PIC"};
     juce::TextEditor presetSearch;
     juce::ComboBox languageBox;
@@ -65,6 +67,17 @@ private:
     std::unique_ptr<ButtonAttachment> enabledAttach, soloAttach, dynamicAttach, bypassAttach;
     juce::ValueTree stateA, stateB;
     bool onB=false, showPre=true, showPost=true, freezeSpectrum=false, holdSpectrum=false;
+    bool dnaEnabled=true, dnaTargetArmed=false;
+    float dnaArmedHz=0.f;
+    unsigned int dnaFrames=0;
+    loveeq::dna::Result dnaResult {};
+    juce::dsp::FFT dnaFft {13};
+    std::array<float,16384> dnaScratch {};
+    std::array<float,4097> dnaMagnitudes {};
+    void updateHarmonicDNA();
+    void focusDnaCandidate();
+    void applyDnaSuggestion();
+    void updateDnaControls();
     bool sketchMode=false, sketchActive=false, noteGrid=false;
     std::vector<loveeq::curvelab::SketchPoint> sketchPoints;
     void addSketchPoint(const juce::Point<float>&);

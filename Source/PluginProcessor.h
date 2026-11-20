@@ -7,7 +7,7 @@
 class LoveEQAudioProcessor final : public juce::AudioProcessor {
 public:
     static constexpr int bandCount = 8;
-    static constexpr int scopeSize = 2048;
+    static constexpr int scopeSize = 8192; // Longer analyzer history for Harmonic DNA. RT write count unchanged.
     static constexpr int graphicBandCount = 16;
     static constexpr std::array<double,graphicBandCount> graphicHz {
         25.0,40.0,63.0,100.0,160.0,250.0,400.0,630.0,

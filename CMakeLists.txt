@@ -25,6 +25,7 @@ juce_generate_juce_header(LoveEQ)
 target_sources(LoveEQ PRIVATE
     Source/EqCore.h
     Source/CurveLab.h
+    Source/HarmonicDNA.h
     Source/FactoryPresets.h
     Source/PresetBrowser.h
     Source/UserPresetLibrary.h
@@ -66,3 +67,9 @@ add_executable(loveeq_curve_lab_test tests/curvelab_test.cpp)
 target_compile_features(loveeq_curve_lab_test PRIVATE cxx_std_17)
 target_include_directories(loveeq_curve_lab_test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/Source)
 add_test(NAME loveeq_curve_lab COMMAND loveeq_curve_lab_test)
+
+# Pure C++ monophonic harmonic analysis tests, independent of JUCE.
+add_executable(loveeq_harmonic_dna_test tests/harmonic_dna_test.cpp)
+target_compile_features(loveeq_harmonic_dna_test PRIVATE cxx_std_17)
+target_include_directories(loveeq_harmonic_dna_test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/Source)
+add_test(NAME loveeq_harmonic_dna COMMAND loveeq_harmonic_dna_test)

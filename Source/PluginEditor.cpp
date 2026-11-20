@@ -224,6 +224,21 @@ LoveEQAudioProcessorEditor::LoveEQAudioProcessorEditor(LoveEQAudioProcessor& p)
     };
     notesButton.onClick=[this]{noteGrid=notesButton.getToggleState();repaint();};
     grabButton.onClick=[this]{grabSpectrumPeak();};
+    for(juce::TextButton* b : std::array<juce::TextButton*,3>{
+        &dnaButton,&dnaFocusButton,&dnaCutButton})show(*b);
+    dnaButton.setClickingTogglesState(true);
+    dnaButton.setToggleState(true,juce::dontSendNotification);
+    dnaButton.onClick=[this]{
+        dnaEnabled=dnaButton.getToggleState();
+        dnaTargetArmed=false;
+        updateDnaControls();
+        repaint();
+    };
+    dnaFocusButton.onClick=[this]{focusDnaCandidate();};
+    dnaCutButton.onClick=[this]{applyDnaSuggestion();};
+    dnaFocusButton.setTooltip(u8"Positionner la bande sur un pic non harmonique sans couper le son.");
+    dnaCutButton.setTooltip(u8"Appliquer une coupe de -2 dB après votre confirmation.");
+    updateDnaControls();
     for(auto* b:{&enabledButton,&soloButton,&dynamicButton}) show(*b);
     for(auto* b:{&typeBox,&channelBox,&slopeBox}) show(*b);
     const juce::StringArray types {"Bell","Low Shelf","High Shelf","High Pass","Low Pass","Notch","Band Pass"};
@@ -302,6 +317,7 @@ void LoveEQAudioProcessorEditor::updateGraphicVisibility() {
     const bool graphic=activeTab==2;
     for(auto& button:bandButtons)button.setVisible(!graphic);
     for(auto& slider:graphicSliders)slider.setVisible(graphic);
+    updateDnaControls();
     for(juce::Component* component : std::array<juce::Component*,13>{
             &frequency,&gain,&q,&threshold,&range,&attack,&release,
             &typeBox,&channelBox,&slopeBox,&enabledButton,&soloButton,&dynamicButton})
@@ -323,6 +339,9 @@ void LoveEQAudioProcessorEditor::updateLanguageSafeTexts() {
     sketchButton.setButtonText(tr("DESSIN","SKETCH"));
     notesButton.setButtonText(tr("NOTES","NOTES"));
     grabButton.setButtonText(tr("CAPTER PIC","GRAB PEAK"));
+    dnaButton.setButtonText("HARMONIC DNA");
+    dnaFocusButton.setButtonText(tr("CIBLER","TARGET"));
+    dnaCutButton.setButtonText(tr(u8"ATTÉNUER","CUT -2 dB"));
     sketchButton.setTooltip(tr("Dessiner une courbe : le moteur adapte huit filtres réels",
                                  "Draw a curve, then fit eight real EQ filters"));
     notesButton.setTooltip(tr("Afficher les notes. Alt-glisser pour caler une fréquence",
@@ -574,6 +593,33 @@ void LoveEQAudioProcessorEditor::paint(juce::Graphics& g) {
         g.strokePath(preview,juce::PathStrokeType(2.f,juce::PathStrokeType::curved,
                                                   juce::PathStrokeType::rounded));
     }
+    if(dnaEnabled && activeTab!=2 && dnaResult.reliable) {
+        g.setFont(juce::Font(juce::FontOptions("Arial",9.f,juce::Font::bold)));
+        float lastX=-100.f;
+        for(int i=0;i<dnaResult.harmonicCount;++i) {
+            const auto& partial=dnaResult.harmonic[(size_t)i];
+            if(partial.hz<20.f||partial.hz>20000.f)continue;
+            const float x=xForHz(partial.hz);
+            if(x-lastX<9.f)continue;
+            lastX=x;
+            g.setColour(juce::Colour(0xff79cdbc));
+            g.drawVerticalLine((int)x,(float)graph.getY()+38.f,(float)graph.getY()+58.f);
+            g.fillEllipse(x-3.f,(float)graph.getY()+35.f,6.f,6.f);
+            if(partial.order==1)
+                g.drawText("H1",(int)x-15,graph.getY()+18,30,15,juce::Justification::centred);
+        }
+        if(dnaResult.inspectCount>0) {
+            const float x=xForHz(dnaResult.inspect[0].hz);
+            g.setColour(juce::Colour(0xffe3a0a8));
+            juce::Path diamond;
+            diamond.startNewSubPath(x,(float)graph.getY()+72.f);
+            diamond.lineTo(x+5.f,(float)graph.getY()+78.f);
+            diamond.lineTo(x,(float)graph.getY()+84.f);
+            diamond.lineTo(x-5.f,(float)graph.getY()+78.f);
+            diamond.closeSubPath();
+            g.strokePath(diamond,juce::PathStrokeType(1.6f));
+        }
+    }
     g.restoreState();
     g.setColour(juce::Colour(0xff91a0a9));
     g.setFont(juce::Font(juce::FontOptions(10.f)));
@@ -712,7 +758,7 @@ void LoveEQAudioProcessorEditor::paint(juce::Graphics& g) {
     g.setColour(juce::Colour(0xffc6d0d7));
     g.drawText(tr("BANDE ","BAND ")+juce::String(selectedBand+1),49,bottomPanel.getY()+9,119,20,juce::Justification::centredLeft);
     g.drawText(tr("DYNAMIQUE","DYNAMICS"),split1+12,bottomPanel.getY()+9,131,20,juce::Justification::centredLeft);
-    g.drawText("EQ MATCH",split2+12,bottomPanel.getY()+9,126,20,juce::Justification::centredLeft);
+    g.drawText(dnaEnabled?"HARMONIC DNA":"EQ MATCH",split2+12,bottomPanel.getY()+9,220,20,juce::Justification::centredLeft);
     g.setColour(juce::Colour(0xff8496a0));
     g.setFont(juce::Font(juce::FontOptions(9.f)));
     const std::array<juce::String,6> labels {
@@ -729,8 +775,43 @@ void LoveEQAudioProcessorEditor::paint(juce::Graphics& g) {
     };
     for(int i=0;i<4;++i)
         g.drawText(dynamics[(size_t)i],split1+12+i*67,bottomPanel.getY()+39,64,17,juce::Justification::centredLeft);
-    g.drawText(tr("Correspondance spectrale","Spectrum matching"),split2+12,bottomPanel.getY()+48,202,18,juce::Justification::centredLeft);
-    g.drawText(tr(u8"EN COURS DE DÉVELOPPEMENT","IN DEVELOPMENT"),split2+12,bottomPanel.getY()+72,220,17,juce::Justification::centredLeft);
+    if(dnaEnabled) {
+        const int x=split2+12;
+        g.setFont(juce::Font(juce::FontOptions("Arial",11.f,juce::Font::plain)));
+        if(dnaResult.reliable) {
+            const juce::String pitch=juce::String(loveeq::curvelab::noteName(dnaResult.fundamentalHz));
+            const juce::String summary=pitch+" / "+juce::String(dnaResult.fundamentalHz,1)+
+                " Hz / "+juce::String((int)(dnaResult.confidence*100.f))+"%";
+            g.setColour(juce::Colour(0xff81d9c4));
+            g.drawText(summary,x,bottomPanel.getY()+29,231,18,juce::Justification::centredLeft);
+            g.setColour(juce::Colour(0xffc3d3d9));
+            g.drawText(juce::String(dnaResult.harmonicCount)+
+               tr(u8" harmoniques identifiées"," harmonics identified"),
+               x,bottomPanel.getY()+47,231,17,juce::Justification::centredLeft);
+            if(dnaResult.inspectCount>0) {
+                g.setColour(juce::Colour(0xffe6c7a2));
+                g.drawText(tr(u8"Pic à examiner : ","Inspect peak: ")+
+                   juce::String((int)std::round(dnaResult.inspect[0].hz))+" Hz",
+                   x,bottomPanel.getY()+65,231,16,juce::Justification::centredLeft);
+            } else {
+                g.drawText(tr("Aucun pic isolé suspect","No isolated peak to inspect"),
+                           x,bottomPanel.getY()+65,231,16,juce::Justification::centredLeft);
+            }
+        } else {
+            g.setColour(juce::Colour(0xffbdcbd1));
+            g.drawText(tr(u8"Fondamentale non fiable","Pitch not reliable"),
+                       x,bottomPanel.getY()+32,231,17,juce::Justification::centredLeft);
+            g.setFont(juce::Font(juce::FontOptions("Arial",9.5f,juce::Font::plain)));
+            g.drawText(tr(u8"Signal complexe / silence : aucune coupe",
+                          "Complex/silent source: no EQ cut"),
+                       x,bottomPanel.getY()+55,231,19,juce::Justification::centredLeft);
+        }
+    } else {
+        g.drawText(tr("Correspondance spectrale","Spectrum matching"),
+                   split2+12,bottomPanel.getY()+48,202,18,juce::Justification::centredLeft);
+        g.drawText(tr(u8"EN COURS DE DÉVELOPPEMENT","IN DEVELOPMENT"),
+                   split2+12,bottomPanel.getY()+72,220,17,juce::Justification::centredLeft);
+    }
     g.drawText(activeTab==1?tr(u8"RÉGLAGES DYNAMIQUES","DYNAMIC CONTROLS"):tr(u8"RÉGLAGES PARAMÉTRIQUES","PARAMETRIC CONTROLS"),bottomPanel.getX()+10,bottomPanel.getBottom()-22,315,15,juce::Justification::centredLeft);
 
     }
@@ -765,6 +846,7 @@ void LoveEQAudioProcessorEditor::resized() {
     sketchButton.setBounds(418,155,79,25);
     notesButton.setBounds(502,155,72,25);
     grabButton.setBounds(579,155,101,25);
+    dnaButton.setBounds(690,155,142,25);
     graph={65,210,w-219,239};
     meterBox={w-132,192,101,272};
     peakResetButton.setBounds(meterBox.getX()+4,meterBox.getBottom()-26,93,23);
@@ -779,6 +861,8 @@ void LoveEQAudioProcessorEditor::resized() {
                           bandRow.getY()+1,gfWidth-10,58);
     }
     bottomPanel={24,587,w-48,122};
+    dnaFocusButton.setBounds(889,675,103,26);
+    dnaCutButton.setBounds(998,675,121,26);
     controls={24,587,560,122};
     footerPanel={24,718,w-48,35};
     const int baseY=bottomPanel.getY()+57;
@@ -950,7 +1034,7 @@ void LoveEQAudioProcessorEditor::mouseDoubleClick(const juce::MouseEvent& e) {
 void LoveEQAudioProcessorEditor::updateFFT(bool before,std::array<float,1025>& out){
     const auto end=processor.scopeIndex.load(std::memory_order_acquire);
     for(int j=0;j<2048;++j) {
-        const auto index=(end+(unsigned int)j)%LoveEQAudioProcessor::scopeSize;
+        const auto index=(end-(unsigned int)2048+(unsigned int)j)%LoveEQAudioProcessor::scopeSize;
         const float x=before?processor.scopeBefore[index].load():processor.scopeAfter[index].load();
         fftScratch[(size_t)j]=x*(0.5f-0.5f*std::cos(2.f*juce::MathConstants<float>::pi*j/2047.f));
     }
@@ -958,10 +1042,84 @@ void LoveEQAudioProcessorEditor::updateFFT(bool before,std::array<float,1025>& o
     fft.performFrequencyOnlyForwardTransform(fftScratch.data());
     for(int j=0;j<=1024;++j)out[(size_t)j]=juce::Decibels::gainToDecibels(fftScratch[(size_t)j]/512.f,-96.f);
 }
+void LoveEQAudioProcessorEditor::updateDnaControls() {
+    const bool mode=dnaEnabled && activeTab!=2;
+    dnaFocusButton.setVisible(mode);
+    dnaCutButton.setVisible(mode);
+    const bool hasCandidate=dnaResult.reliable && dnaResult.inspectCount>0;
+    dnaFocusButton.setEnabled(mode && hasCandidate);
+    dnaCutButton.setEnabled(mode && dnaTargetArmed);
+}
+void LoveEQAudioProcessorEditor::updateHarmonicDNA() {
+    const auto sampleRate=processor.getSampleRate();
+    if(sampleRate<8000.0) {
+        dnaResult={};dnaTargetArmed=false;updateDnaControls();return;
+    }
+    const unsigned int end=processor.scopeIndex.load(std::memory_order_acquire);
+    constexpr unsigned int fftSize=8192;
+    for(unsigned int j=0;j<fftSize;++j) {
+        const unsigned int index=(end-fftSize+j)%LoveEQAudioProcessor::scopeSize;
+        const float value=processor.scopeBefore[(size_t)index].load(std::memory_order_relaxed);
+        const float hann=0.5f-0.5f*std::cos(2.f*juce::MathConstants<float>::pi*(float)j/8191.f);
+        dnaScratch[(size_t)j]=value*hann;
+    }
+    std::fill(dnaScratch.begin()+fftSize,dnaScratch.end(),0.f);
+    dnaFft.performFrequencyOnlyForwardTransform(dnaScratch.data());
+    for(size_t i=0;i<dnaMagnitudes.size();++i)
+        dnaMagnitudes[i]=std::max(0.f,dnaScratch[i]/4096.f);
+    const auto updated=loveeq::dna::analyze(
+        dnaMagnitudes.data(),(int)dnaMagnitudes.size(),sampleRate,(int)fftSize);
+    // Reconfirmation is required after a new or substantially different peak.
+    if(!updated.reliable || updated.inspectCount==0 ||
+       (dnaTargetArmed && std::abs(updated.inspect[0].hz-dnaArmedHz)>
+          std::max(20.f,0.045f*dnaArmedHz)))dnaTargetArmed=false;
+    dnaResult=updated;
+    updateDnaControls();
+}
+void LoveEQAudioProcessorEditor::focusDnaCandidate() {
+    if(activeTab==2 || !dnaEnabled || !dnaResult.reliable || dnaResult.inspectCount==0)return;
+    const float hz=dnaResult.inspect[0].hz;
+    if(hz<20.f||hz>20000.f)return;
+    const auto id=[this](const juce::String& name){
+        return LoveEQAudioProcessor::bandId(selectedBand,name);
+    };
+    processor.undoManager.beginNewTransaction(tr(u8"Examiner un pic non harmonique",
+                                                  "Inspect a nonharmonic spectral peak"));
+    setParam(id("enabled"),1.f);
+    setParam(id("solo"),0.f);
+    setParam(id("type"),0.f);
+    setParam(id("hz"),hz);
+    setParam(id("q"),6.f);
+    setParam(id("gain"),0.f); // The initial targeting is explicitly neutral.
+    processor.undoManager.beginNewTransaction();
+    attachBand(selectedBand);
+    dnaArmedHz=hz;
+    dnaTargetArmed=true;
+    updateDnaControls();
+    repaint();
+}
+void LoveEQAudioProcessorEditor::applyDnaSuggestion() {
+    if(!dnaEnabled||!dnaTargetArmed||activeTab==2)return;
+    const auto* hz=processor.parameters.getRawParameterValue(
+        LoveEQAudioProcessor::bandId(selectedBand,"hz"));
+    if(!hz || std::abs(hz->load()-dnaArmedHz)>std::max(20.f,0.04f*dnaArmedHz)) {
+        dnaTargetArmed=false;
+        updateDnaControls();
+        return;
+    }
+    processor.undoManager.beginNewTransaction(tr(u8"Atténuation confirmée par l'utilisateur",
+                                                  "User-confirmed spectral reduction"));
+    setParam(LoveEQAudioProcessor::bandId(selectedBand,"gain"),-2.f);
+    processor.undoManager.beginNewTransaction();
+    dnaTargetArmed=false;
+    updateDnaControls();
+    repaint();
+}
 void LoveEQAudioProcessorEditor::timerCallback(){
     if(!freezeSpectrum) {
         if(showPre)updateFFT(true,preSpectrum);
         if(showPost)updateFFT(false,postSpectrum);
+        if(dnaEnabled && (++dnaFrames%8u)==0u)updateHarmonicDNA();
         if(holdSpectrum) {
             for(size_t i=0;i<heldPre.size();++i) {
                 heldPre[i]=std::max(heldPre[i],preSpectrum[i]);
