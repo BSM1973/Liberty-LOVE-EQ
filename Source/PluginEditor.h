@@ -69,6 +69,7 @@ private:
     bool onB=false, showPre=true, showPost=true, freezeSpectrum=false, holdSpectrum=false;
     bool dnaEnabled=true, dnaTargetArmed=false;
     float dnaArmedHz=0.f;
+    int dnaArmedBand=-1;
     unsigned int dnaFrames=0;
     loveeq::dna::Result dnaResult {};
     juce::dsp::FFT dnaFft {13};

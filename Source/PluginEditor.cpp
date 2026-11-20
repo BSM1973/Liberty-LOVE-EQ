@@ -236,7 +236,7 @@ LoveEQAudioProcessorEditor::LoveEQAudioProcessorEditor(LoveEQAudioProcessor& p)
     };
     dnaFocusButton.onClick=[this]{focusDnaCandidate();};
     dnaCutButton.onClick=[this]{applyDnaSuggestion();};
-    dnaFocusButton.setTooltip(u8"Positionner la bande sur un pic non harmonique sans couper le son.");
+    dnaFocusButton.setTooltip(u8"Préparer la fréquence non harmonique sans modifier l’audio. ATTÉNUER valide la coupe.");
     dnaCutButton.setTooltip(u8"Appliquer une coupe de -2 dB après votre confirmation.");
     updateDnaControls();
     for(auto* b:{&enabledButton,&soloButton,&dynamicButton}) show(*b);
@@ -367,7 +367,9 @@ void LoveEQAudioProcessorEditor::setParam(const juce::String& id,float v) {
     if(auto* p=processor.parameters.getParameter(id)) p->setValueNotifyingHost(p->convertTo0to1(v));
 }
 void LoveEQAudioProcessorEditor::attachBand(int index) {
+    if(dnaTargetArmed && index!=selectedBand) dnaTargetArmed=false;
     selectedBand=juce::jlimit(0,7,index);
+    updateDnaControls();
     hzAttach.reset();gainAttach.reset();qAttach.reset();typeAttach.reset();channelAttach.reset();slopeAttach.reset();
     enabledAttach.reset();soloAttach.reset();dynamicAttach.reset();
     thresholdAttach.reset();rangeAttach.reset();attackAttach.reset();releaseAttach.reset();
@@ -617,7 +619,7 @@ void LoveEQAudioProcessorEditor::paint(juce::Graphics& g) {
             diamond.lineTo(x,(float)graph.getY()+84.f);
             diamond.lineTo(x-5.f,(float)graph.getY()+78.f);
             diamond.closeSubPath();
-            g.strokePath(diamond,juce::PathStrokeType(1.6f));
+            g.strokePath(diamond,juce::PathStrokeType(dnaTargetArmed?2.8f:1.6f));
         }
     }
     g.restoreState();
@@ -790,7 +792,7 @@ void LoveEQAudioProcessorEditor::paint(juce::Graphics& g) {
                x,bottomPanel.getY()+47,231,17,juce::Justification::centredLeft);
             if(dnaResult.inspectCount>0) {
                 g.setColour(juce::Colour(0xffe6c7a2));
-                g.drawText(tr(u8"Pic à examiner : ","Inspect peak: ")+
+                g.drawText((dnaTargetArmed?tr(u8"Cible prête : ","Target ready: "):tr(u8"Pic à examiner : ","Inspect peak: "))+
                    juce::String((int)std::round(dnaResult.inspect[0].hz))+" Hz",
                    x,bottomPanel.getY()+65,231,16,juce::Justification::centredLeft);
             } else {
@@ -1079,37 +1081,32 @@ void LoveEQAudioProcessorEditor::updateHarmonicDNA() {
 void LoveEQAudioProcessorEditor::focusDnaCandidate() {
     if(activeTab==2 || !dnaEnabled || !dnaResult.reliable || dnaResult.inspectCount==0)return;
     const float hz=dnaResult.inspect[0].hz;
-    if(hz<20.f||hz>20000.f)return;
-    const auto id=[this](const juce::String& name){
-        return LoveEQAudioProcessor::bandId(selectedBand,name);
-    };
-    processor.undoManager.beginNewTransaction(tr(u8"Examiner un pic non harmonique",
-                                                  "Inspect a nonharmonic spectral peak"));
-    setParam(id("enabled"),1.f);
-    setParam(id("solo"),0.f);
-    setParam(id("type"),0.f);
-    setParam(id("hz"),hz);
-    setParam(id("q"),6.f);
-    setParam(id("gain"),0.f); // The initial targeting is explicitly neutral.
-    processor.undoManager.beginNewTransaction();
-    attachBand(selectedBand);
+    if(hz<20.f || hz>20000.f)return;
+    // Arming is intentionally visual only: no existing filter is changed.
     dnaArmedHz=hz;
+    dnaArmedBand=selectedBand;
     dnaTargetArmed=true;
     updateDnaControls();
     repaint();
 }
 void LoveEQAudioProcessorEditor::applyDnaSuggestion() {
-    if(!dnaEnabled||!dnaTargetArmed||activeTab==2)return;
-    const auto* hz=processor.parameters.getRawParameterValue(
-        LoveEQAudioProcessor::bandId(selectedBand,"hz"));
-    if(!hz || std::abs(hz->load()-dnaArmedHz)>std::max(20.f,0.04f*dnaArmedHz)) {
+    if(!dnaEnabled || !dnaTargetArmed || activeTab==2)return;
+    if(dnaArmedBand!=selectedBand || dnaArmedBand<0 || dnaArmedBand>=LoveEQAudioProcessor::bandCount) {
         dnaTargetArmed=false;
         updateDnaControls();
         return;
     }
+    const auto id=[this](const juce::String& parameter){
+        return LoveEQAudioProcessor::bandId(selectedBand,parameter);
+    };
     processor.undoManager.beginNewTransaction(tr(u8"Atténuation confirmée par l'utilisateur",
                                                   "User-confirmed spectral reduction"));
-    setParam(LoveEQAudioProcessor::bandId(selectedBand,"gain"),-2.f);
+    setParam(id("enabled"),1.f);
+    setParam(id("solo"),0.f);
+    setParam(id("type"),0.f);
+    setParam(id("hz"),dnaArmedHz);
+    setParam(id("q"),6.f);
+    setParam(id("gain"),-2.f);
     processor.undoManager.beginNewTransaction();
     dnaTargetArmed=false;
     updateDnaControls();

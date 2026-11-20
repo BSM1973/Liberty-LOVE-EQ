@@ -10,8 +10,8 @@ Protéger l'identité musicale d'une source monophonique en identifiant les comp
 - Estimation de confiance. Quand le signal est silencieux, trop peu harmonique ou trop complexe, aucune fondamentale fiable n'est proposée.
 - Marquage turquoise des harmoniques associées à la fondamentale sur le spectre. Un pic non aligné apparaît dans la zone HARMONIC DNA comme « à examiner » et est indiqué en rose sur le spectre.
 - Affichage de la note, de la fréquence, d'une estimation de confiance et du nombre de partiels trouvés ; deux langues, français par défaut.
-- CIBLER : place la bande sélectionnée sur le pic à examiner, Q=6 et gain=0 dB, sans aucune coupe ni amplification.
-- ATTÉNUER : ne devient disponible qu'après CIBLER et applique -2 dB après clic explicite. Historique Undo/Redo du DAW conservé.
+-  CIBLER : arme visuellement un pic à examiner, sans toucher aux paramètres du plugin et sans modifier le son.
+- ATTÉNUER : après CIBLER, applique une nouvelle bande Bell centrée sur le pic non harmonique, Q=6 et gain=-2 dB, sur clic explicite. Historique Undo/Redo du DAW conservé.
 - En désactivant HARMONIC DNA, le panneau précédent EQ MATCH non fonctionnel réapparaît, sans modifier le son.
 - Fonction active seulement dans les vues paramétrique et dynamique ; le mode graphique continue de fonctionner sans superposition.
 

@@ -76,6 +76,16 @@ processor_h=(root/"Source"/"PluginProcessor.h").read_text("utf-8")
 if "scopeSize = 8192;" not in processor_h:
     bad.append("Harmonic DNA requires a real 8192-sample audio analyzer history")
 
+
+# CIBLER is an advisory action only: it must not mutate APVTS parameters.
+focus=ui.split("void LoveEQAudioProcessorEditor::focusDnaCandidate() {",1)
+if len(focus)!=2:
+    bad.append("Harmonic DNA focus implementation missing")
+else:
+    focus_body=focus[1].split("void LoveEQAudioProcessorEditor::applyDnaSuggestion() {",1)[0]
+    if "setParam(" in focus_body:
+        bad.append("Harmonic DNA focus must not modify audio parameters")
+
 # Fail CI if the most frequent 13-inch layout collision regressions reappear.
 layout_contract={
     "header_browse":(660,37,102,32),
