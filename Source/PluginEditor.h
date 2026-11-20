@@ -47,6 +47,17 @@ private:
     juce::TextButton tabParam {u8"PARAMÉTRIQUE"}, tabDynamic {"DYNAMIQUE"}, tabGraphic {"GRAPHIQUE"};
     juce::TextButton holdButton {"MAINTIEN PIC"}, freezeButton {"FIGER"};
     juce::TextButton dnaButton {"HARMONIC DNA"}, dnaFocusButton {"CIBLER"}, dnaCutButton {"ATTÉNUER"};
+    juce::TextButton relationModeButton {"RELATION EQ"},relationSuggestButton {"PROPOSER"},
+                     relationApplyButton {"ACTIVER"};
+    juce::ComboBox relationRoleBox,relationPriorityBox,relationGroupBox;
+    bool relationMode=false,relationSuggested=false;
+    float relationProposedHz=0.f,relationProposedScore=0.f;
+    int relationReferenceCount=0;
+    juce::String relationStatus;
+    void initializeRelationship();
+    void updateRelationshipControls();
+    void proposeRelationship();
+    void applyRelationship();
     juce::TextButton sketchButton {"DESSIN"}, notesButton {"NOTES"}, grabButton {"CAPTER PIC"};
     juce::TextEditor presetSearch;
     juce::ComboBox languageBox;

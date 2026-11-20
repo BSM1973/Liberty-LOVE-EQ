@@ -30,6 +30,17 @@ APVTS::ParameterLayout LoveEQAudioProcessor::makeParameterLayout() {
     p.add(boolean("bypass","Bypass",false));
     p.add(boolean("external_sc","External Sidechain",false));
     p.add(choice("eq_mode","EQ Mode",{"Parametric","Graphic"},0));
+    p.add(choice("relationship_role","Relationship Track Role",
+                 {"Unassigned","Voice","Bass","Guitar","Other"},0));
+    p.add(choice("relationship_group","Relationship Group",
+                 {"Off","Group 1","Group 2","Group 3","Group 4"},0));
+    p.add(choice("relationship_priority","Relationship Priority",
+                 {"Voice","Bass","Guitar","Other"},0));
+    p.add(boolean("relationship_active","Relationship Dynamic Active",false));
+    p.add(fl("relationship_hz","Relationship Center Frequency",65.f,8000.f,1000.f));
+    p.add(fl("relationship_q","Relationship Q",0.5f,6.f,1.4f));
+    p.add(fl("relationship_max_cut","Relationship Maximum Reduction",0.f,6.f,3.f));
+    p.add(fl("relationship_guard_hz","Relationship Protected Fundamental",0.f,1400.f,0.f));
     for(int band=0;band<graphicBandCount;++band)
         p.add(fl(graphicId(band),"Graphic Gain "+juce::String(band+1),-18.f,18.f,0.f,0.1f));
     const juce::StringArray types {"Bell","Low Shelf","High Shelf","High Pass","Low Pass","Notch","Band Pass"};
@@ -66,6 +77,15 @@ LoveEQAudioProcessor::LoveEQAudioProcessor()
     bypassParam=parameters.getRawParameterValue("bypass");
     sidechainParam=parameters.getRawParameterValue("external_sc");
     eqModeParam=parameters.getRawParameterValue("eq_mode");
+    relationshipRoleParam=parameters.getRawParameterValue("relationship_role");
+    relationshipGroupParam=parameters.getRawParameterValue("relationship_group");
+    relationshipPriorityParam=parameters.getRawParameterValue("relationship_priority");
+    relationshipActiveParam=parameters.getRawParameterValue("relationship_active");
+    relationshipHzParam=parameters.getRawParameterValue("relationship_hz");
+    relationshipQParam=parameters.getRawParameterValue("relationship_q");
+    relationshipMaxCutParam=parameters.getRawParameterValue("relationship_max_cut");
+    relationshipGuardHzParam=parameters.getRawParameterValue("relationship_guard_hz");
+    relationSlot=loveeq::relationship::registry().reserve();
     for(int i=0;i<graphicBandCount;++i) graphicParams[(size_t)i]=parameters.getRawParameterValue(graphicId(i));
     for (int i=0;i<bandCount;++i) {
         auto& p=bandParameters[(size_t)i];
@@ -86,6 +106,9 @@ LoveEQAudioProcessor::LoveEQAudioProcessor()
     }
 }
 
+LoveEQAudioProcessor::~LoveEQAudioProcessor() {
+    loveeq::relationship::registry().release(relationSlot);
+}
 bool LoveEQAudioProcessor::isBusesLayoutSupported(const BusesLayout& l) const {
     const auto mainIn=l.getMainInputChannelSet(), mainOut=l.getMainOutputChannelSet();
     if (mainIn!=mainOut || (mainOut!=juce::AudioChannelSet::mono() && mainOut!=juce::AudioChannelSet::stereo())) return false;
@@ -168,6 +191,13 @@ void LoveEQAudioProcessor::prepareToPlay(double sampleRate,int) {
     scopeIndex.store(0);
     for(auto& a:scopeBefore) a.store(0.f);
     for(auto& a:scopeAfter) a.store(0.f);
+    relationMeter.prepare(rate);
+    relationPreviousLevels.fill(0.f);
+    relationshipGainDb=0.0;
+    relationshipCoeffCountdown=0;
+    relationshipAttackCoeff=std::exp(-1.0/(rate*0.035));
+    relationshipReleaseCoeff=std::exp(-1.0/(rate*0.24));
+    for(auto& lane:relationshipFilters)lane.reset();
     setLatencySamples(0);
 }
 void LoveEQAudioProcessor::releaseResources() {}
@@ -199,10 +229,28 @@ void LoveEQAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,juce::M
         rt.smoothedQ.setTargetValue(s.q);
         rt.wet.setTargetValue((s.enabled && (!anySolo || s.solo))?1.f:0.f);
     }
+    const int relationGroup=(int)value(relationshipGroupParam);
+    const int relationRole=(int)value(relationshipRoleParam);
+    const int relationPriority=(int)value(relationshipPriorityParam)+1;
+    const float relationHz=value(relationshipHzParam);
+    const bool relationEnabled=value(relationshipActiveParam)>0.5f &&
+        relationRole>0 && relationRole!=relationPriority && relationGroup>0 &&
+        !loveeq::relationship::isProtected(relationHz,value(relationshipGuardHzParam));
+    const auto priorityFrame=relationEnabled?
+        loveeq::relationship::registry().aggregate(relationGroup,relationPriority,relationSlot):
+        loveeq::relationship::Frame{};
+    const int targetBin=loveeq::relationship::nearestBand(relationHz);
+    const float targetDb=priorityFrame.valid?
+        loveeq::relationship::dynamicCut(
+            relationPreviousLevels[(size_t)targetBin],
+            priorityFrame.rms[(size_t)targetBin],
+            value(relationshipMaxCutParam)):0.f;
+    const float relationQ=juce::jlimit(0.5f,6.f,value(relationshipQParam));
     float inPeak=0.f, outPeak=0.f;
     for (int sample=0;sample<n;++sample) {
         const float origL=left[sample], origR=right?right[sample]:origL;
         inPeak=std::max({inPeak,std::abs(origL),std::abs(origR)});
+        relationMeter.push(0.5f*(origL+origR));
         float l=origL*inputGain.getNextValue();
         float r=right?origR*inputGain.getCurrentValue():l;
         // Both engines run while crossfading so filter histories remain warm.
@@ -249,6 +297,17 @@ void LoveEQAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,juce::M
         const float graphicAmount=graphicBlend.getNextValue();
         l+=graphicAmount*(graphicL-l);
         if(right) r+=graphicAmount*(graphicR-r);
+        const double coeff=targetDb<relationshipGainDb?
+            relationshipAttackCoeff:relationshipReleaseCoeff;
+        relationshipGainDb=coeff*relationshipGainDb+(1.0-coeff)*targetDb;
+        if(--relationshipCoeffCountdown<=0) {
+            const auto c=loveeq::design(loveeq::Type::Bell,rate,
+                juce::jlimit(65.f,8000.f,relationHz),relationshipGainDb,relationQ);
+            for(auto& lane:relationshipFilters)lane.set(c);
+            relationshipCoeffCountdown=32;
+        }
+        l=relationshipFilters[0].process(l);
+        if(right)r=relationshipFilters[1].process(r);
         const float outGainNow=outputGain.getNextValue();
         const float mix=globalWet.getNextValue();
         const float finalL=origL+mix*(l*outGainNow-origL);
@@ -269,6 +328,8 @@ void LoveEQAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,juce::M
     };
     updatePeak(peakHoldIn,inPeak);
     updatePeak(peakHoldOut,outPeak);
+    relationPreviousLevels=relationMeter.take();
+    loveeq::relationship::registry().publish(relationSlot,relationGroup,relationRole,relationPreviousLevels);
 }
 
 void LoveEQAudioProcessor::getStateInformation(juce::MemoryBlock& out) {
@@ -290,6 +351,7 @@ void LoveEQAudioProcessor::loadFactoryPreset(size_t index) {
     undoManager.beginNewTransaction("Factory preset");
     set("input_gain",0); set("output_gain",0); set("bypass",0); set("external_sc",0);
     set("eq_mode",0.f);
+    set("relationship_active",0.f);
     for(int i=0;i<bandCount;++i) {
         const auto& b=data[(size_t)i];
         const auto id=[i](const juce::String& s){return bandId(i,s);};
@@ -308,6 +370,7 @@ void LoveEQAudioProcessor::resetToFlat() {
     undoManager.beginNewTransaction("Reset flat");
     set("input_gain",0.f);set("output_gain",0.f);set("bypass",0.f);set("external_sc",0.f);
     set("eq_mode",0.f);
+    set("relationship_active",0.f);
     for(int i=0;i<graphicBandCount;++i) set(graphicId(i),0.f);
     for(int i=0;i<bandCount;++i) {
         const auto id=[i](const juce::String& s){return bandId(i,s);};

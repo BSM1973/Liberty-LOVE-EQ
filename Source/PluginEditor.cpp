@@ -236,6 +236,7 @@ LoveEQAudioProcessorEditor::LoveEQAudioProcessorEditor(LoveEQAudioProcessor& p)
     };
     dnaFocusButton.onClick=[this]{focusDnaCandidate();};
     dnaCutButton.onClick=[this]{applyDnaSuggestion();};
+    initializeRelationship();
     dnaFocusButton.setTooltip(u8"Préparer la fréquence non harmonique sans modifier l’audio. ATTÉNUER valide la coupe.");
     dnaCutButton.setTooltip(u8"Appliquer une coupe de -2 dB après votre confirmation.");
     updateDnaControls();
@@ -304,6 +305,128 @@ LoveEQAudioProcessorEditor::LoveEQAudioProcessorEditor(LoveEQAudioProcessor& p)
     startTimerHz(24);
 }
 LoveEQAudioProcessorEditor::~LoveEQAudioProcessorEditor(){stopTimer();setLookAndFeel(nullptr);}
+void LoveEQAudioProcessorEditor::initializeRelationship() {
+    for(juce::Component* c:std::array<juce::Component*,6>{
+        &relationModeButton,&relationRoleBox,&relationPriorityBox,
+        &relationGroupBox,&relationSuggestButton,&relationApplyButton})
+        addAndMakeVisible(*c);
+    relationRoleBox.addItemList(juce::StringArray{
+        tr(u8"Non affecté","Unassigned"),tr("Voix","Voice"),
+        tr("Basse","Bass"),tr("Guitare","Guitar"),tr("Autre","Other")},1);
+    relationPriorityBox.addItemList(juce::StringArray{
+        tr("Voix","Voice"),tr("Basse","Bass"),tr("Guitare","Guitar"),tr("Autre","Other")},1);
+    relationGroupBox.addItemList(juce::StringArray{
+        "OFF","1","2","3","4"},1);
+    const auto read=[this](const juce::String& key)->int {
+        if(const auto* parameter=processor.parameters.getRawParameterValue(key))
+            return (int)parameter->load();
+        return 0;
+    };
+    relationRoleBox.setSelectedId(read("relationship_role")+1,juce::dontSendNotification);
+    relationPriorityBox.setSelectedId(read("relationship_priority")+1,juce::dontSendNotification);
+    relationGroupBox.setSelectedId(read("relationship_group")+1,juce::dontSendNotification);
+    const auto changed=[this](const juce::String& id,int next){
+        setParam(id,(float)next);
+        setParam("relationship_active",0.f);
+        relationSuggested=false;
+        relationProposedHz=0.f;
+        relationStatus=tr(u8"Routage mis à jour","Routing updated");
+        updateRelationshipControls();
+        repaint();
+    };
+    relationRoleBox.onChange=[this,changed]{changed("relationship_role",relationRoleBox.getSelectedId()-1);};
+    relationPriorityBox.onChange=[this,changed]{changed("relationship_priority",relationPriorityBox.getSelectedId()-1);};
+    relationGroupBox.onChange=[this,changed]{changed("relationship_group",relationGroupBox.getSelectedId()-1);};
+    relationModeButton.setClickingTogglesState(true);
+    relationModeButton.onClick=[this] {
+        relationMode=relationModeButton.getToggleState();
+        if(relationMode && activeTab==2)selectTab(0);
+        updateDnaControls();
+        updateRelationshipControls();
+        repaint();
+    };
+    relationSuggestButton.onClick=[this]{proposeRelationship();};
+    relationApplyButton.onClick=[this]{applyRelationship();};
+    relationModeButton.setTooltip(tr(
+       u8"Relier les spectres de plusieurs instances LOVE EQ dans le même processus",
+       "Share spectral activity between LOVE EQ instances in one process"));
+    relationStatus=tr("Choisir le rôle, la priorité et le groupe","Select role, priority and group");
+    relationSuggestButton.setTooltip(relationStatus);
+    relationApplyButton.setTooltip(tr(u8"Atténuation spectrale dynamique uniquement après validation",
+                                      "Opt-in dynamic spectral reduction"));
+    updateRelationshipControls();
+}
+void LoveEQAudioProcessorEditor::updateRelationshipControls() {
+    const bool shown=relationMode && activeTab!=2;
+    for(juce::Component* component:std::array<juce::Component*,5>{
+        &relationRoleBox,&relationPriorityBox,&relationGroupBox,
+        &relationSuggestButton,&relationApplyButton})
+        component->setVisible(shown);
+    const auto role=processor.parameters.getRawParameterValue("relationship_role");
+    const auto group=processor.parameters.getRawParameterValue("relationship_group");
+    const auto priority=processor.parameters.getRawParameterValue("relationship_priority");
+    const auto active=processor.parameters.getRawParameterValue("relationship_active");
+    const int r=role?(int)role->load():0;
+    const int g=group?(int)group->load():0;
+    const int p=priority?(int)priority->load()+1:1;
+    const bool valid=shown && r>0 && g>0 && r!=p && processor.relationshipInstanceId()>=0;
+    const bool enabled=active && active->load()>0.5f;
+    relationSuggestButton.setEnabled(valid);
+    relationApplyButton.setButtonText(enabled?tr(u8"ARRÊTER","STOP"):tr("ACTIVER","ENABLE"));
+    const bool guarded=dnaEnabled && dnaResult.reliable && relationSuggested &&
+        !loveeq::relationship::isProtected(relationProposedHz,dnaResult.fundamentalHz);
+    relationApplyButton.setEnabled(shown && (enabled || (valid && guarded)));
+}
+void LoveEQAudioProcessorEditor::proposeRelationship() {
+    relationSuggested=false;
+    const auto own=processor.relationshipOwnFrame();
+    const auto other=processor.relationshipPriorityFrame();
+    relationReferenceCount=other.count;
+    if(!own.valid||!other.valid) {
+        relationStatus=tr(u8"Ajouter LOVE EQ sur une autre piste du même groupe",
+                           "Add LOVE EQ to another track in the same group");
+        updateRelationshipControls();repaint();return;
+    }
+    const auto suggestion=loveeq::relationship::propose(
+        own,other,dnaResult.reliable?dnaResult.fundamentalHz:0.f);
+    if(!suggestion.valid) {
+        relationStatus=tr(u8"Aucun masquage significatif non protégé",
+                           "No meaningful unprotected masking found");
+        updateRelationshipControls();repaint();return;
+    }
+    relationProposedHz=suggestion.hz;
+    relationProposedScore=suggestion.score;
+    relationSuggested=true;
+    relationStatus=dnaResult.reliable?
+        tr(u8"Conflit repéré : écoutez avant d'activer","Overlap found: listen before enabling"):
+        tr(u8"Harmoniques incertaines : correction bloquée","Pitch uncertain: correction disabled");
+    updateRelationshipControls();
+    repaint();
+}
+void LoveEQAudioProcessorEditor::applyRelationship() {
+    const auto active=processor.parameters.getRawParameterValue("relationship_active");
+    if(active && active->load()>0.5f) {
+        setParam("relationship_active",0.f);
+        relationStatus=tr(u8"Atténuation dynamique arrêtée","Dynamic reduction stopped");
+        updateRelationshipControls();repaint();return;
+    }
+    if(!relationSuggested || !dnaEnabled || !dnaResult.reliable ||
+       loveeq::relationship::isProtected(relationProposedHz,dnaResult.fundamentalHz) ||
+       !processor.relationshipPriorityFrame().valid)return;
+    processor.undoManager.beginNewTransaction(tr(
+        u8"Relation EQ : atténuation dynamique confirmée","Relationship EQ: confirmed dynamic cut"));
+    setParam("relationship_hz",relationProposedHz);
+    setParam("relationship_q",1.4f);
+    setParam("relationship_max_cut",3.f);
+    setParam("relationship_guard_hz",dnaResult.fundamentalHz);
+    setParam("relationship_active",1.f);
+    processor.undoManager.beginNewTransaction();
+    relationSuggested=false;
+    relationStatus=tr(u8"Correction dynamique active (0 à -3 dB)",
+                      "Dynamic correction active (0 to -3 dB)");
+    updateRelationshipControls();
+    repaint();
+}
 void LoveEQAudioProcessorEditor::selectTab(int tab) {
     activeTab=juce::jlimit(0,2,tab);
     tabParam.setToggleState(activeTab==0,juce::dontSendNotification);
@@ -315,9 +438,14 @@ void LoveEQAudioProcessorEditor::selectTab(int tab) {
 }
 void LoveEQAudioProcessorEditor::updateGraphicVisibility() {
     const bool graphic=activeTab==2;
+    if(graphic && relationMode){
+        relationMode=false;
+        relationModeButton.setToggleState(false,juce::dontSendNotification);
+    }
     for(auto& button:bandButtons)button.setVisible(!graphic);
     for(auto& slider:graphicSliders)slider.setVisible(graphic);
     updateDnaControls();
+    updateRelationshipControls();
     for(juce::Component* component : std::array<juce::Component*,13>{
             &frequency,&gain,&q,&threshold,&range,&attack,&release,
             &typeBox,&channelBox,&slopeBox,&enabledButton,&soloButton,&dynamicButton})
@@ -342,6 +470,22 @@ void LoveEQAudioProcessorEditor::updateLanguageSafeTexts() {
     dnaButton.setButtonText("HARMONIC DNA");
     dnaFocusButton.setButtonText(tr("CIBLER","TARGET"));
     dnaCutButton.setButtonText(tr(u8"ATTÉNUER","CUT -2 dB"));
+    relationModeButton.setButtonText("RELATION EQ");
+    relationSuggestButton.setButtonText(tr("PROPOSER","SUGGEST"));
+    const int keepRole=relationRoleBox.getSelectedId();
+    const int keepPriority=relationPriorityBox.getSelectedId();
+    if(keepRole>0 && keepPriority>0) {
+        relationRoleBox.clear(juce::dontSendNotification);
+        relationRoleBox.addItemList(juce::StringArray{
+            tr(u8"Non affecté","Unassigned"),tr("Voix","Voice"),
+            tr("Basse","Bass"),tr("Guitare","Guitar"),tr("Autre","Other")},1);
+        relationRoleBox.setSelectedId(keepRole,juce::dontSendNotification);
+        relationPriorityBox.clear(juce::dontSendNotification);
+        relationPriorityBox.addItemList(juce::StringArray{
+            tr("Voix","Voice"),tr("Basse","Bass"),tr("Guitare","Guitar"),tr("Autre","Other")},1);
+        relationPriorityBox.setSelectedId(keepPriority,juce::dontSendNotification);
+    }
+    updateRelationshipControls();
     sketchButton.setTooltip(tr("Dessiner une courbe : le moteur adapte huit filtres réels",
                                  "Draw a curve, then fit eight real EQ filters"));
     notesButton.setTooltip(tr("Afficher les notes. Alt-glisser pour caler une fréquence",
@@ -569,6 +713,16 @@ void LoveEQAudioProcessorEditor::paint(juce::Graphics& g) {
         g.setFont(juce::Font(juce::FontOptions(11.f,juce::Font::bold)));
         g.drawText(juce::String(band+1),(int)x-10,(int)y-10,20,20,juce::Justification::centred);
     }
+    if(relationMode && relationProposedHz>=65.f && relationProposedHz<=8000.f) {
+        const float x=xForHz(relationProposedHz);
+        g.setColour(juce::Colour(0x33edc178));
+        g.fillRect(juce::Rectangle<float>(x-12.f,(float)graph.getY(),24.f,(float)graph.getHeight()));
+        g.setColour(juce::Colour(0xffdfb76b));
+        g.drawVerticalLine((int)x,(float)graph.getY(),(float)graph.getBottom());
+        g.setFont(juce::Font(juce::FontOptions("Arial",10.f,juce::Font::bold)));
+        g.drawText(juce::String((int)relationProposedHz)+" Hz",
+           (int)x-42,graph.getY()+9,84,18,juce::Justification::centred);
+    }
     if(noteGrid) {
         g.setColour(juce::Colour(0xff809ba9).withAlpha(0.62f));
         g.setFont(juce::Font(juce::FontOptions("Arial",9.f,juce::Font::plain)));
@@ -760,7 +914,8 @@ void LoveEQAudioProcessorEditor::paint(juce::Graphics& g) {
     g.setColour(juce::Colour(0xffc6d0d7));
     g.drawText(tr("BANDE ","BAND ")+juce::String(selectedBand+1),49,bottomPanel.getY()+9,119,20,juce::Justification::centredLeft);
     g.drawText(tr("DYNAMIQUE","DYNAMICS"),split1+12,bottomPanel.getY()+9,131,20,juce::Justification::centredLeft);
-    g.drawText(dnaEnabled?"HARMONIC DNA":"EQ MATCH",split2+12,bottomPanel.getY()+9,220,20,juce::Justification::centredLeft);
+    g.drawText(relationMode?"RELATIONSHIP EQ":dnaEnabled?"HARMONIC DNA":"EQ MATCH",
+               split2+12,bottomPanel.getY()+(relationMode?7:9),220,relationMode?17:20,juce::Justification::centredLeft);
     g.setColour(juce::Colour(0xff8496a0));
     g.setFont(juce::Font(juce::FontOptions(9.f)));
     const std::array<juce::String,6> labels {
@@ -777,7 +932,27 @@ void LoveEQAudioProcessorEditor::paint(juce::Graphics& g) {
     };
     for(int i=0;i<4;++i)
         g.drawText(dynamics[(size_t)i],split1+12+i*67,bottomPanel.getY()+39,64,17,juce::Justification::centredLeft);
-    if(dnaEnabled) {
+    if(relationMode) {
+        const int x=split2+12, y=bottomPanel.getY();
+        g.setColour(juce::Colour(0xffa6bac5));
+        g.setFont(juce::Font(juce::FontOptions("Arial",9.f,juce::Font::bold)));
+        g.drawText(tr(u8"RÔLE","ROLE"),x,y+25,97,12,juce::Justification::centredLeft);
+        g.drawText(tr(u8"PRIORITÉ","PRIORITY"),x+104,y+25,135,12,juce::Justification::centredLeft);
+        g.setColour(juce::Colour(0xffe0c28e));
+        const auto remote=processor.relationshipPriorityFrame();
+        if(relationSuggested) {
+            g.drawText(tr("Conflit : ","Overlap: ")+
+               juce::String((int)relationProposedHz)+" Hz",
+               x,y+69,217,14,juce::Justification::centredLeft);
+        } else if(remote.valid) {
+            g.drawText(juce::String(remote.count)+tr(u8" piste(s) reliée(s)"," linked track(s)"),
+                       x,y+69,217,14,juce::Justification::centredLeft);
+        } else {
+            g.drawText(tr(u8"Aucune piste prioritaire détectée","No priority track detected"),
+                       x,y+69,217,14,juce::Justification::centredLeft);
+        }
+        // Status text is presented as a tooltip, never drawn over the action row.
+    } else if(dnaEnabled) {
         const int x=split2+12;
         g.setFont(juce::Font(juce::FontOptions("Arial",11.f,juce::Font::plain)));
         if(dnaResult.reliable) {
@@ -849,6 +1024,7 @@ void LoveEQAudioProcessorEditor::resized() {
     notesButton.setBounds(502,155,72,25);
     grabButton.setBounds(579,155,101,25);
     dnaButton.setBounds(690,155,142,25);
+    relationModeButton.setBounds(840,155,146,25);
     graph={65,210,w-219,239};
     meterBox={w-132,192,101,272};
     peakResetButton.setBounds(meterBox.getX()+4,meterBox.getBottom()-26,93,23);
@@ -865,6 +1041,11 @@ void LoveEQAudioProcessorEditor::resized() {
     bottomPanel={24,587,w-48,122};
     dnaFocusButton.setBounds(889,675,103,26);
     dnaCutButton.setBounds(998,675,121,26);
+    relationRoleBox.setBounds(880,625,98,27);
+    relationPriorityBox.setBounds(984,625,134,27);
+    relationGroupBox.setBounds(880,675,66,26);
+    relationSuggestButton.setBounds(952,675,82,26);
+    relationApplyButton.setBounds(1040,675,78,26);
     controls={24,587,560,122};
     footerPanel={24,718,w-48,35};
     const int baseY=bottomPanel.getY()+57;
@@ -1045,7 +1226,7 @@ void LoveEQAudioProcessorEditor::updateFFT(bool before,std::array<float,1025>& o
     for(int j=0;j<=1024;++j)out[(size_t)j]=juce::Decibels::gainToDecibels(fftScratch[(size_t)j]/512.f,-96.f);
 }
 void LoveEQAudioProcessorEditor::updateDnaControls() {
-    const bool mode=dnaEnabled && activeTab!=2;
+    const bool mode=dnaEnabled && activeTab!=2 && !relationMode;
     dnaFocusButton.setVisible(mode);
     dnaCutButton.setVisible(mode);
     const bool hasCandidate=dnaResult.reliable && dnaResult.inspectCount>0;

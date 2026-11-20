@@ -26,6 +26,7 @@ target_sources(LoveEQ PRIVATE
     Source/EqCore.h
     Source/CurveLab.h
     Source/HarmonicDNA.h
+    Source/RelationshipEQ.h
     Source/FactoryPresets.h
     Source/PresetBrowser.h
     Source/UserPresetLibrary.h
@@ -73,3 +74,9 @@ add_executable(loveeq_harmonic_dna_test tests/harmonic_dna_test.cpp)
 target_compile_features(loveeq_harmonic_dna_test PRIVATE cxx_std_17)
 target_include_directories(loveeq_harmonic_dna_test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/Source)
 add_test(NAME loveeq_harmonic_dna COMMAND loveeq_harmonic_dna_test)
+
+# Multi-instance real-time spectrum registry, harmonic guard and release logic.
+add_executable(loveeq_relationship_test tests/relationship_test.cpp)
+target_compile_features(loveeq_relationship_test PRIVATE cxx_std_17)
+target_include_directories(loveeq_relationship_test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/Source)
+add_test(NAME loveeq_relationship COMMAND loveeq_relationship_test)

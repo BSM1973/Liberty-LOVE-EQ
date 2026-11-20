@@ -86,6 +86,22 @@ else:
     if "setParam(" in focus_body:
         bad.append("Harmonic DNA focus must not modify audio parameters")
 
+
+# Relationship UI must expose real controls and opt-in host parameters.
+for token in ("relationModeButton.setBounds(", "relationRoleBox.setBounds(",
+              "relationPriorityBox.setBounds(", "relationGroupBox.setBounds(",
+              "relationSuggestButton.setBounds(", "relationApplyButton.setBounds(",
+              "void LoveEQAudioProcessorEditor::proposeRelationship(",
+              "void LoveEQAudioProcessorEditor::applyRelationship("):
+    if token not in ui:
+        bad.append(f"Relationship UI missing: {token}")
+processor=(root/"Source"/"PluginProcessor.cpp").read_text("utf-8")
+for token in ('"relationship_role"','"relationship_priority"','"relationship_group"',
+              '"relationship_active"','relationshipFilters[0].process(',
+              'relationship::registry().publish('):
+    if token not in processor:
+        bad.append(f"Relationship DSP integration missing: {token}")
+
 # Fail CI if the most frequent 13-inch layout collision regressions reappear.
 layout_contract={
     "header_browse":(660,37,102,32),

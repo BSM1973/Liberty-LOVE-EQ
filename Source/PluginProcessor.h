@@ -3,6 +3,7 @@
 #include <array>
 #include <atomic>
 #include "EqCore.h"
+#include "RelationshipEQ.h"
 
 class LoveEQAudioProcessor final : public juce::AudioProcessor {
 public:
@@ -15,7 +16,7 @@ public:
     };
     static juce::String graphicId(int index) { return "graphic_gain_" + juce::String(index+1); }
     LoveEQAudioProcessor();
-    ~LoveEQAudioProcessor() override = default;
+    ~LoveEQAudioProcessor() override;
 
     void prepareToPlay(double sampleRate, int maximumExpectedSamplesPerBlock) override;
     void releaseResources() override;
@@ -50,6 +51,14 @@ public:
     void loadFactoryPreset(size_t index);
     void resetToFlat();
     static juce::String bandId(int band, const juce::String& suffix);
+    loveeq::relationship::Frame relationshipOwnFrame() const noexcept {
+        return loveeq::relationship::registry().snapshot(relationSlot);
+    }
+    loveeq::relationship::Frame relationshipPriorityFrame() const noexcept {
+        return loveeq::relationship::registry().aggregate(
+            (int)value(relationshipGroupParam),(int)value(relationshipPriorityParam)+1,relationSlot);
+    }
+    int relationshipInstanceId() const noexcept { return relationSlot; }
     static juce::AudioProcessorValueTreeState::ParameterLayout makeParameterLayout();
 private:
     struct BandSettings {
@@ -80,6 +89,16 @@ private:
             countdown=0;
         }
     };
+    // In-process cross-instance spectral communication, backed by fixed atomic slots.
+    int relationSlot=-1;
+    loveeq::relationship::Meter relationMeter;
+    std::array<float,loveeq::relationship::bandCount> relationPreviousLevels {};
+    std::atomic<float> *relationshipRoleParam{},*relationshipGroupParam{},
+                       *relationshipPriorityParam{},*relationshipActiveParam{},
+                       *relationshipHzParam{},*relationshipQParam{},*relationshipMaxCutParam{},*relationshipGuardHzParam{};
+    std::array<loveeq::Biquad,2> relationshipFilters {};
+    double relationshipGainDb=0.0,relationshipAttackCoeff=0.0,relationshipReleaseCoeff=0.0;
+    int relationshipCoeffCountdown=0;
     std::array<GraphicRuntime,graphicBandCount> graphicRuntime {};
     std::array<std::atomic<float>*,graphicBandCount> graphicParams {};
     std::atomic<float>* eqModeParam {};
