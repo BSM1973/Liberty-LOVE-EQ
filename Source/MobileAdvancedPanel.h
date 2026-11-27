@@ -16,6 +16,7 @@ public:
     std::function<void()> onClose;
     void open(int requested,int band){
         close();page=requested;
+        editor.mobilePrepareAux();
         editor.attachBand(band);
         editor.mobileAuxVisible=true;
         if(page==1){editor.dnaEnabled=true;editor.dnaButton.setToggleState(true,juce::dontSendNotification);editor.updateDnaControls();}
@@ -47,7 +48,10 @@ public:
             auto row=r.removeFromTop(44);
             for(int k=0;k<columns&&i+k<nb;++k){int x=row.getWidth()*k/columns,n=row.getWidth()*(k+1)/columns;actions[(size_t)(i+k)].setBounds(row.getX()+x,row.getY(),n-x-2,row.getHeight()-2);}
         }
-        for(int i=0;i<nv;++i){values[(size_t)i].setBounds(r.removeFromTop(44).reduced(1));}
+        if(getWidth()>=600 && getHeight()<340 && nv>0){
+            auto row=r.removeFromTop(44);
+            for(int i=0;i<nv;++i){int x=row.getWidth()*i/nv,n=row.getWidth()*(i+1)/nv;values[(size_t)i].setBounds(row.getX()+x,row.getY(),n-x-2,44);}
+        }else for(int i=0;i<nv;++i){values[(size_t)i].setBounds(r.removeFromTop(44).reduced(1));}
     }
 private:
     LoveEQAudioProcessorEditor& editor;

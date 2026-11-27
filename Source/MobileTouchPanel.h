@@ -3,6 +3,7 @@
 #include "MobileTouchLayout.h"
 #include <cmath>
 #include <map>
+#include <iterator>
 
 // UI-only. All writes use the existing host-notified RangedAudioParameter.
 class LoveEQTouchPanel final : public juce::Component, private juce::Timer {
@@ -309,7 +310,7 @@ private:
     }
     void timerCallback() override {
         if(!isShowing()){if(refresh!=2){refresh=2;startTimerHz(refresh);}return;}
-        const auto wanted=processor.mobileAudioReady.load(std::memory_order_acquire)?18:8;
+        const auto wanted=processor.mobileAudioReady.load(std::memory_order_acquire) && processor.scopeIndex.load(std::memory_order_acquire)!=scope?18:8;
         if(refresh!=wanted){refresh=wanted;startTimerHz(refresh);}
         if(graphic()!=lastGraphic){finishGestures();bindPage();}
         updateLabels();

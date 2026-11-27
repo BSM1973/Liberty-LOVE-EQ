@@ -32,6 +32,15 @@ public:
     bool mobileEnglish() const { return english; }
     friend class LoveEQMobileAdvanced;
     bool mobileAuxVisible=false;
+    void mobilePrepareAux(){
+        if(matchMode)closeMatchView();
+        if(intentMode)closeIntentView();
+        if(timeLensMode){timeLensMode=false;timeLensModeButton.setToggleState(false,juce::dontSendNotification);}
+        if(relationMode){relationMode=false;relationModeButton.setToggleState(false,juce::dontSendNotification);}
+        if(presetBrowser)presetBrowser->setVisible(false);
+        updateGraphicVisibility();
+    }
+    void mobilePresetLoaded(int index){presetSearch.clear();refillPresets();presetCombo.setSelectedId(index>=0?index+1:0,juce::dontSendNotification);syncMobileMode();}
     void syncMobileMode() {
         const bool graphic=processor.parameters.getRawParameterValue("eq_mode")->load()>.5f;
         if(graphic!=(activeTab==2))selectTab(graphic?2:0);
@@ -247,7 +256,7 @@ public:
         addChildComponent(compactPresets);addChildComponent(advanced);
         compactPresets.setMobileCompact(true);
         compactPresets.onClose=[this]{resized();};
-        compactPresets.onLoad=[this](int){canvas.syncMobileMode();resized();};
+        compactPresets.onLoad=[this](int i){canvas.mobilePresetLoaded(i);resized();};
         advanced.onClose=[this]{advanced.setVisible(false);resized();};
         touch.onAdvanced=[this](int mode,int band){canvas.syncMobileMode();advanced.open(mode,band);resized();};
         addAndMakeVisible(viewMode);
@@ -266,7 +275,7 @@ public:
         up.onClick = [this] { pan(0.f, -0.65f); };
         down.onClick = [this] { pan(0.f, 0.65f); };
         presets.onClick = [this] {
-            if(useTouch){advanced.close();compactPresets.translate(canvas.mobileEnglish());compactPresets.open();resized();return;}
+            if(useTouch){advanced.close();canvas.mobilePrepareAux();compactPresets.translate(canvas.mobileEnglish());compactPresets.open();resized();return;}
             zoom = 1.f; centreX = centreY = 0.5f;
             viewPreference=1;resized();
             if(!canvas.mobilePresetsVisible())canvas.openMobilePresets(); layoutCanvas();
@@ -285,6 +294,7 @@ public:
         useTouch=supported && (viewPreference==2 || (viewPreference==0 && loveeq::mobile::preferTouch(area.getWidth(),area.getHeight())));
         viewMode.setEnabled(supported);
         if(!useTouch && touch.isVisible())canvas.syncMobileMode();
+        if(useTouch && window.isVisible())canvas.mobilePrepareAux();
         if(!useTouch){advanced.close();compactPresets.setVisible(false);}
         window.setVisible(!useTouch);touch.setVisible(useTouch&&!advanced.isVisible()&&!compactPresets.isVisible());
         viewMode.setButtonText(useTouch?"STUDIO":"TOUCH");
