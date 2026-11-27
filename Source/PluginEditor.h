@@ -243,7 +243,7 @@ public:
         addChildComponent(touch);
         addAndMakeVisible(viewMode);
         viewMode.setColour(juce::TextButton::buttonColourId,juce::Colour(0xff84683d));
-        viewMode.onClick=[this]{manualView=true;useTouch=!useTouch;resized();};
+        viewMode.onClick=[this]{viewPreference=useTouch?1:2;resized();};
         for (auto* button : buttons()) {
             addAndMakeVisible(*button);
             button->setColour(juce::TextButton::buttonColourId, juce::Colour(0xff273542));
@@ -258,7 +258,7 @@ public:
         down.onClick = [this] { pan(0.f, 0.65f); };
         presets.onClick = [this] {
             zoom = 1.f; centreX = centreY = 0.5f;
-            manualView=true;useTouch=false;resized();
+            viewPreference=1;resized();
             if(!canvas.mobilePresetsVisible())canvas.openMobilePresets(); layoutCanvas();
         };
         setResizable(true, false);
@@ -272,8 +272,7 @@ public:
     void resized() override {
         auto area = getLocalBounds().reduced(4);
         const bool supported=loveeq::mobile::supportsTouch(area.getWidth(),area.getHeight()-46);
-        if(!supported)useTouch=false;
-        else if(!manualView)useTouch=loveeq::mobile::preferTouch(area.getWidth(),area.getHeight());
+        useTouch=supported && (viewPreference==2 || (viewPreference==0 && loveeq::mobile::preferTouch(area.getWidth(),area.getHeight())));
         viewMode.setEnabled(supported);
         if(!useTouch && touch.isVisible())canvas.syncMobileMode();
         window.setVisible(!useTouch);touch.setVisible(useTouch);
@@ -306,7 +305,8 @@ private:
     LoveEQAudioProcessorEditor canvas;
     LoveEQTouchPanel touch;
     juce::TextButton viewMode{"TOUCH"};
-    bool manualView=false,useTouch=false;
+    int viewPreference=0; // auto, studio, touch
+    bool useTouch=false;
     juce::TextButton overview{"VUE"}, zoomIn{"ZOOM +"}, zoomOut{"ZOOM -"},
         presets{"PRESETS"}, left{"<"}, right{">"}, up{"^"}, down{"v"};
     float zoom = 1.f, centreX = 0.5f, centreY = 0.5f;

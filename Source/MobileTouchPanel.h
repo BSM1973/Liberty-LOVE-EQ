@@ -168,7 +168,7 @@ public:
     void paint(juce::Graphics& g) override {g.fillAll(juce::Colour(0xff151a22));}
     void resized() override {
         auto a=getLocalBounds().reduced(3);
-        auto row=a.removeFromTop(43);
+        auto row=a.removeFromTop(44);
         place(row,{&eq,&dyn,&mix,&fine});
         a.removeFromTop(3);
         juce::Rectangle<int> controls;
@@ -180,7 +180,7 @@ public:
             graph.setBounds(a.removeFromTop(juce::jmax(48,a.getHeight()-reserve)));
             a.removeFromTop(3);controls=a;
         }
-        auto toolbar=controls.removeFromTop(43);place(toolbar,{&prev,&mode,&next,&bypass});
+        auto toolbar=controls.removeFromTop(44);place(toolbar,{&prev,&mode,&next,&bypass});
         controls.removeFromTop(3);
         const int cols=controls.getWidth()<394?4:8;
         const int rows=8/cols;

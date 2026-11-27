@@ -7,7 +7,7 @@ inline constexpr bool supportsTouch(int w,int h) noexcept {
     return (w>=280 && h>=350) || (w>=600 && h>=300);
 }
 inline constexpr bool preferTouch(int w,int h) noexcept {
-    return supportsTouch(w,h) && (w<900 || h<620);
+    return supportsTouch(w,h) && (w<760 || h<620);
 }
 inline constexpr bool sideBySide(int w,int h) noexcept {
     return w>=600 && h<500;
