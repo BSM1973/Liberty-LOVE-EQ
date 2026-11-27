@@ -305,6 +305,7 @@ public:
             auto bar=area.removeFromTop(44);
             viewMode.setBounds(bar.removeFromLeft(bar.getWidth()/2).reduced(1));
             presets.setBounds(bar.reduced(1));
+            if(touch.getBounds()!=area)touch.finishGestures();
             touch.setBounds(area);
             compactPresets.setBounds(area);
             advanced.setBounds(area);

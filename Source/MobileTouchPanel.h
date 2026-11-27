@@ -35,22 +35,24 @@ class LoveEQTouchPanel final : public juce::Component, private juce::Timer {
             g.setColour(juce::Colour(0xffb99760));
             g.fillRoundedRectangle(r.getX()+5,r.getBottom()-6,(r.getWidth()-10)*param->getValue(),3.f,1.5f);
         }
-        void mouseDown(const juce::MouseEvent&) override {
-            finish();if(!param)return;param->beginChangeGesture();dragging=true;initial=param->getValue();
+        void mouseDown(const juce::MouseEvent& e) override {
+            if(dragging || !param)return;
+            sourceIndex=e.source.getIndex();param->beginChangeGesture();dragging=true;initial=param->getValue();
         }
         void mouseDrag(const juce::MouseEvent& e) override {
-            if(!dragging||!param)return;
+            if(!dragging||!param||sourceIndex!=e.source.getIndex())return;
             const float sensitivity=e.mods.isShiftDown()||fine?0.00065f:0.0035f;
             param->setValueNotifyingHost(juce::jlimit(0.f,1.f,initial-e.getDistanceFromDragStartY()*sensitivity));repaint();
         }
-        void mouseUp(const juce::MouseEvent&) override {finish();}
-        void mouseDoubleClick(const juce::MouseEvent&) override {
+        void mouseUp(const juce::MouseEvent& e) override {if(sourceIndex==e.source.getIndex())finish();}
+        void mouseDoubleClick(const juce::MouseEvent& e) override {
+            if(dragging && sourceIndex!=e.source.getIndex())return;
             finish();if(param){param->beginChangeGesture();param->setValueNotifyingHost(param->getDefaultValue());param->endChangeGesture();repaint();}
         }
         void finish(){if(dragging&&param)param->endChangeGesture();dragging=false;}
         bool fine=false;
     private:
-        Param* param=nullptr;juce::String label;float initial=0.f;bool dragging=false;
+        Param* param=nullptr;juce::String label;float initial=0.f;bool dragging=false;int sourceIndex=-1;
     };
     class Plot final : public juce::Component {
     public:
@@ -110,8 +112,9 @@ class LoveEQTouchPanel final : public juce::Component, private juce::Timer {
         }
         void mouseDown(const juce::MouseEvent& e) override {
             if(!plot().expanded(5.f).contains(e.position))return;
+            if(contacts.size()>=2)return; // ignore extra contacts until the pinch ends
             contacts[e.source.getIndex()]=e.position;
-            if(contacts.size()>=2){
+            if(contacts.size()==2){
                 finish();pinching=true;
                 auto a=contacts.begin(),b=std::next(a);
                 initialDistance=juce::jmax(8.f,a->second.getDistanceFrom(b->second));
@@ -157,7 +160,7 @@ class LoveEQTouchPanel final : public juce::Component, private juce::Timer {
             if(gainParam){float db=startGain-e.getDistanceFromDragStartY()*48.f*factor/r.getHeight();auto range=gainParam->getNormalisableRange();gainParam->setValueNotifyingHost(gainParam->convertTo0to1(juce::jlimit(range.start,range.end,db)));}
             repaint();
         }
-        void mouseUp(const juce::MouseEvent& e) override {contacts.erase(e.source.getIndex());finish();if(contacts.empty())pinching=false;}
+        void mouseUp(const juce::MouseEvent& e) override {if(contacts.erase(e.source.getIndex())==0)return;finish();if(contacts.empty())pinching=false;}
         void resetZoom(){domainStart=0.f;span=1.f;repaint();}
         void cancelContacts(){finish();contacts.clear();pinching=false;}
         void finish(){if(hzParam)hzParam->endChangeGesture();if(gainParam)gainParam->endChangeGesture();hzParam=gainParam=nullptr;}
@@ -315,7 +318,7 @@ private:
         if(graphic()!=lastGraphic){finishGestures();bindPage();}
         updateLabels();
         auto e=processor.mobileAudioEpoch.load(std::memory_order_acquire);
-        if(e!=epoch){epoch=e;scope=0;audioFresh=false;}
+        if(e!=epoch){finishGestures();epoch=e;scope=0;audioFresh=false;}
         if(!processor.mobileAudioReady.load(std::memory_order_acquire))audioFresh=false;
         else {
             auto end=processor.scopeIndex.load(std::memory_order_acquire);

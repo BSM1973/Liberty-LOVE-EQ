@@ -4,7 +4,7 @@ Subtitle (FR): Égaliseur audio AUv3
 Subtitle (EN): AUv3 Audio Equalizer
 Category: Music
 SKU: LIBERTY-LOVE-EQ-IOS
-Version: 0.5.0 (internal beta)
+Version: 0.8.0 (internal beta; 1.0 commercial submission pending device qualification)
 Proposed launch price: EUR 9.99; proposed regular price EUR 14.99, pending owner confirmation and Apple price configuration.
 
 ## French description

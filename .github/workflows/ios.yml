@@ -46,7 +46,7 @@ jobs:
             plist="$bundle/Info.plist"
             executable=$(/usr/libexec/PlistBuddy -c 'Print CFBundleExecutable' "$plist")
             /usr/libexec/PlistBuddy -c 'Print CFBundleIdentifier' "$plist"
-            lipo -verify_arch arm64 "$bundle/$executable"
+            xcrun lipo "$bundle/$executable" -verify_arch arm64
           done
           python3 scripts/verify_ios_bundle.py "$app" "$extension"
           mkdir -p artifacts

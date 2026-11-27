@@ -89,7 +89,7 @@ public:
         g.fillAll(juce::Colour(0xff151d26));
 #if JUCE_IOS
         if(mobileCompact){
-            g.setColour(juce::Colour(0xffe2c693));g.setFont(juce::Font(juce::FontOptions(14.f)));
+            g.setColour(juce::Colour(0xffe2c693));g.setFont(juce::Font(juce::FontOptions("Arial",14.f,juce::Font::plain)));
             g.drawFittedText(status,getLocalBounds().removeFromBottom(30).reduced(5,1),juce::Justification::centredLeft,2);
             return;
         }
@@ -348,9 +348,9 @@ private:
         g.setFont(juce::Font(juce::FontOptions("Arial",12.2f,juce::Font::bold)));
 #if JUCE_IOS
         if(mobileCompact){
-            g.setFont(juce::Font(juce::FontOptions(15.f,juce::Font::bold)));
+            g.setFont(juce::Font(juce::FontOptions("Arial",15.f,juce::Font::bold)));
             g.drawFittedText(rowName(index),8,1,width-36,height/2,juce::Justification::centredLeft,1);
-            g.setFont(juce::Font(juce::FontOptions(12.f)));
+            g.setFont(juce::Font(juce::FontOptions("Arial",12.f,juce::Font::plain)));
             g.setColour(juce::Colour(0xff9bafbd));
             g.drawFittedText(categoryLabel(rowCategory(index)),8,height/2,width-36,height/2,juce::Justification::centredLeft,1);
             if(rowFavorite(index)){g.setColour(juce::Colour(0xffe5c184));g.drawText(juce::String::fromUTF8(u8"★"),width-30,0,26,height,juce::Justification::centred);}

@@ -1,4 +1,6 @@
 #include "PluginProcessor.h"
+#include "FactoryPresets.h"
+#include <iomanip>
 #include <iostream>
 #include <chrono>
 #include <cmath>
@@ -93,5 +95,79 @@ int main(){
         std::cout<<"Lifecycle sample_rate="<<sr<<" restored_max_error="<<maxError<<" PASS\n";
     }
     original.releaseResources();restored.releaseResources();
+    // Exercise every factory preset via the real processor, not just metadata.
+    // Two freshly prepared processors must reproduce the saved state and signal.
+    LoveEQAudioProcessor first,second;
+    double worst=0.,worstPeak=0.;
+    int cases=0;
+    for(double sr:{44100.,48000.,96000.})for(size_t preset=0;preset<loveeq::factoryPresets().size();++preset){
+        constexpr int n=128;
+        first.releaseResources();second.releaseResources();
+        first.resetToFlat();first.loadFactoryPreset(preset);
+        juce::MemoryBlock snapshot;
+        first.getStateInformation(snapshot);
+        second.setStateInformation(snapshot.getData(),(int)snapshot.getSize());
+        const auto& aa=first.getParameters();const auto& bb=second.getParameters();
+        if(aa.size()!=bb.size())return 20;
+        for(int i=0;i<aa.size();++i){
+            auto x=aa[i]->getValue(),y=bb[i]->getValue();
+            if(!std::isfinite(x)||!std::isfinite(y)||std::abs(x-y)>1.e-6f)return 21;
+        }
+        first.setRateAndBufferSizeDetails(sr,n);second.setRateAndBufferSizeDetails(sr,n);
+        first.prepareToPlay(sr,n);second.prepareToPlay(sr,n);
+        juce::AudioBuffer<float> x(2,n),y(2,n);
+        juce::MidiBuffer midi;
+        double energy=0.,maxError=0.,peak=0.;
+        for(int k=0;k<32;++k){
+            for(int j=0;j<n;++j){
+                double t=(k*n+j)/sr;
+                x.setSample(0,j,(float)(.06*std::sin(6.283185307179586*80*t)+.04*std::sin(6.283185307179586*1000*t)));
+                x.setSample(1,j,(float)(.05*std::sin(6.283185307179586*240*t)+.03*std::sin(6.283185307179586*4400*t)));
+            }
+            y.makeCopyOf(x);first.processBlock(x,midi);second.processBlock(y,midi);
+            for(int ch=0;ch<2;++ch)for(int j=0;j<n;++j){
+                const float a=x.getSample(ch,j),b=y.getSample(ch,j);
+                if(!std::isfinite(a)||!std::isfinite(b)||std::abs(a)>20.f)return 22;
+                maxError=std::max(maxError,(double)std::abs(a-b));peak=std::max(peak,(double)std::abs(a));energy+=a*a;
+            }
+        }
+        if(maxError>1.e-6||energy<=0.)return 23;
+        worst=std::max(worst,maxError);worstPeak=std::max(worstPeak,peak);++cases;
+        std::cout<<"Preset "<<preset+1<<" "<<loveeq::factoryPresets()[preset].name<<" sr="<<sr<<" max_error="<<maxError<<" peak="<<peak<<" PASS\n";
+    }
+    first.releaseResources();second.releaseResources();
+    std::cout<<"Factory preset restore/audio cases="<<cases<<" max_error="<<worst<<" peak="<<worstPeak<<" PASS\n";
+    // Sustained synthetic load on native runner, not iOS device energy measurement.
+    constexpr int block=128, instances=4;
+    constexpr double sr=48000.;
+    std::vector<std::unique_ptr<LoveEQAudioProcessor>> stress;
+    for(int i=0;i<instances;++i){
+        auto p=std::make_unique<LoveEQAudioProcessor>();
+        p->loadFactoryPreset((size_t)(i*23));p->setRateAndBufferSizeDetails(sr,block);p->prepareToPlay(sr,block);
+        stress.push_back(std::move(p));
+    }
+    juce::AudioBuffer<float> audio(2,block);juce::MidiBuffer events;
+    double sumTime=0.,peakTime=0.;int overBudget=0;
+    constexpr int numBlocks=11250; // 30 s of simulated stream
+    for(int k=0;k<numBlocks;++k){
+        double elapsed=0.;
+        for(int i=0;i<instances;++i){
+            auto& p=*stress[(size_t)i];
+            if(k%64==0)set(p,"band1_gain",(float)((k/64)%13-6));
+            for(int j=0;j<block;++j){
+                float v=(float)(.08*std::sin(6.283185307179586*(220+110*i)*(k*block+j)/sr));
+                audio.setSample(0,j,v);audio.setSample(1,j,v*.75f);
+            }
+            auto start=std::chrono::steady_clock::now();p.processBlock(audio,events);
+            elapsed+=std::chrono::duration<double>(std::chrono::steady_clock::now()-start).count();
+            for(int ch=0;ch<2;++ch)for(int j=0;j<block;++j)
+                if(!std::isfinite(audio.getSample(ch,j))||std::abs(audio.getSample(ch,j))>20.f)return 24;
+        }
+        sumTime+=elapsed;peakTime=std::max(peakTime,elapsed);if(elapsed>block/sr)++overBudget;
+    }
+    for(auto& p:stress)p->releaseResources();
+    std::cout<<std::fixed<<std::setprecision(3)<<"Native runner stress: simulated_seconds=30 instances=4 mean_budget_pct="
+             <<100.*sumTime/(numBlocks*block/sr)<<" peak_budget_pct="<<100.*peakTime/(block/sr)
+             <<" over_budget_blocks="<<overBudget<<" finite_audio=PASS\n";
     return 0;
 }

@@ -62,7 +62,7 @@ jobs:
         run: cmake --build build --config Release --target LoveEQ_All --parallel 3
       - name: Test EQ core and factory presets
         run: |
-          cmake --build build --config Release --target loveeq_core_test loveeq_presets_test loveeq_graphic_test loveeq_utf8_test loveeq_curve_lab_test loveeq_harmonic_dna_test loveeq_relationship_test loveeq_time_lens_test loveeq_intent_test loveeq_match_test loveeq_juce_utf8_test
+          cmake --build build --config Release --target loveeq_core_test loveeq_presets_test loveeq_graphic_test loveeq_utf8_test loveeq_curve_lab_test loveeq_harmonic_dna_test loveeq_relationship_test loveeq_time_lens_test loveeq_intent_test loveeq_match_test loveeq_juce_utf8_test loveeq_mobile_precision_test
           ctest --test-dir build -C Release --output-on-failure
       - name: Package unsigned test builds
         shell: bash

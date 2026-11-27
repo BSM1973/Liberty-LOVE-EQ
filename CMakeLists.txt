@@ -26,7 +26,7 @@ if(CMAKE_SYSTEM_NAME STREQUAL "iOS")
     set(loveeq_ios_icon "${CMAKE_CURRENT_BINARY_DIR}/LOVE-EQ-AppIcon.png")
     execute_process(COMMAND "${LOVE_EQ_HOST_PYTHON}" "${CMAKE_CURRENT_SOURCE_DIR}/scripts/generate_ios_icon.py" "${loveeq_ios_icon}" COMMAND_ERROR_IS_FATAL ANY)
     set(loveeq_mobile_options
-        VERSION 0.7.0
+        VERSION 0.8.0
         BUILD_VERSION "${LOVE_EQ_IOS_BUILD_VERSION}"
         ICON_BIG "${loveeq_ios_icon}"
         TARGETED_DEVICE_FAMILY "1,2"
