@@ -113,7 +113,11 @@ void LoveEQAudioProcessorEditor::Theme::drawPopupMenuItem(juce::Graphics& g,
 void LoveEQAudioProcessorEditor::Theme::getIdealPopupMenuItemSize(
       const juce::String& name,bool separator,int standardHeight,int& width,int& height) {
     if(separator){height=9; width=juce::jmax(width,100);return;}
+#if JUCE_IOS
+    height=juce::jmax(44,standardHeight);
+#else
     height=juce::jmax(32,standardHeight);
+#endif
     width=juce::jmax(width,juce::jmin(390,juce::roundToInt(getPopupMenuFont().getStringWidthFloat(name))+63));
 }
 void LoveEQAudioProcessorEditor::Theme::drawButtonBackground(juce::Graphics& g,
@@ -209,7 +213,11 @@ void LoveEQAudioProcessorEditor::BandTileButton::paintButton(
                      juce::Justification::centredRight,1,0.90f);
 }
 LoveEQAudioProcessorEditor::LoveEQAudioProcessorEditor(LoveEQAudioProcessor& p)
+#if JUCE_IOS
+ : processor(p) {
+#else
  : AudioProcessorEditor(&p),processor(p) {
+#endif
     setLookAndFeel(&theme);
     english=processor.getUiLanguage()=="en";
     languageBox.addItem("FR",1);
@@ -360,7 +368,10 @@ LoveEQAudioProcessorEditor::LoveEQAudioProcessorEditor(LoveEQAudioProcessor& p)
     presetBrowser->translate(english);
     updateLanguageSafeTexts();
     selectTab(processor.parameters.getRawParameterValue("eq_mode")->load()>0.5f?2:0);
-    setResizable(false,false);setSize(1160,760);
+#if !JUCE_IOS
+    setResizable(false,false);
+#endif
+    setSize(1160,760);
     startTimerHz(24);
 }
 LoveEQAudioProcessorEditor::~LoveEQAudioProcessorEditor(){stopTimer();if(intentOriginalValid)restoreIntentBaseline();if(matchBaselineValid)restoreMatchBaseline();setLookAndFeel(nullptr);}
@@ -1959,7 +1970,8 @@ void LoveEQAudioProcessorEditor::mouseDown(const juce::MouseEvent& e) {
         addSketchPoint(e.position);
         return;
     }
-    float best=21.f;
+    // Wider hit radius for a finger; desktop mouse behaviour is unchanged.
+    float best=e.source.isTouch() ? 34.f : 21.f;
     if(activeTab==2) {
         for(int i=0;i<LoveEQAudioProcessor::graphicBandCount;++i) {
             const auto* v=processor.parameters.getRawParameterValue(LoveEQAudioProcessor::graphicId(i));
@@ -1990,7 +2002,7 @@ void LoveEQAudioProcessorEditor::mouseDrag(const juce::MouseEvent& e) {
     if(draggingBand<0)return;
     const float x=juce::jlimit(0.f,1.f,(e.position.x-graph.getX())/graph.getWidth());
     float hz=20.f*std::pow(1000.f,x);
-    if(noteGrid && e.mods.isAltDown())hz=loveeq::curvelab::noteFrequency(hz);
+    if(noteGrid && (e.mods.isAltDown() || e.source.isTouch()))hz=loveeq::curvelab::noteFrequency(hz);
     setParam(LoveEQAudioProcessor::bandId(draggingBand,"hz"),hz);
     setParam(LoveEQAudioProcessor::bandId(draggingBand,"gain"),db);
     repaint();
@@ -2079,7 +2091,7 @@ void LoveEQAudioProcessorEditor::mouseDoubleClick(const juce::MouseEvent& e) {
     };
     float hz=(float)loveeq::curvelab::hzFromPosition(
         ((double)e.position.x-graph.getX())/graph.getWidth());
-    if(noteGrid && e.mods.isAltDown())hz=loveeq::curvelab::noteFrequency(hz);
+    if(noteGrid && (e.mods.isAltDown() || e.source.isTouch()))hz=loveeq::curvelab::noteFrequency(hz);
     const float db=juce::jlimit(-18.f,18.f,
         (graph.getCentreY()-e.position.y)*36.f/graph.getHeight());
     processor.undoManager.beginNewTransaction(tr(u8"Ajouter une bande","Add EQ band"));

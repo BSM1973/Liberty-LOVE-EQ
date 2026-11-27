@@ -587,7 +587,13 @@ void LoveEQAudioProcessor::resetToFlat() {
     }
     undoManager.beginNewTransaction();
 }
-juce::AudioProcessorEditor* LoveEQAudioProcessor::createEditor() { return new LoveEQAudioProcessorEditor(*this); }
+juce::AudioProcessorEditor* LoveEQAudioProcessor::createEditor() {
+#if JUCE_IOS
+    return new LoveEQMobileEditor(*this);
+#else
+    return new LoveEQAudioProcessorEditor(*this);
+#endif
+}
 juce::AudioProcessor* JUCE_CALLTYPE createPluginFilter() { return new LoveEQAudioProcessor(); }
 
 bool LoveEQAudioProcessor::isFavorite(size_t index) const {

@@ -15,7 +15,11 @@ public:
         : processor(p), results("LOVE EQ Presets",nullptr) {
         setOpaque(true);
         results.setModel(this);
+#if JUCE_IOS
+        results.setRowHeight(44);
+#else
         results.setRowHeight(30);
+#endif
         results.setColour(juce::ListBox::backgroundColourId,juce::Colour(0xff121b24));
         results.setOutlineThickness(0);
         addAndMakeVisible(results);
@@ -56,7 +60,9 @@ public:
         reloadUser();
         setVisible(true);
         toFront(true);
+#if !JUCE_IOS
         search.grabKeyboardFocus();
+#endif
     }
     void translate(bool isEnglish) {
         en=isEnglish;

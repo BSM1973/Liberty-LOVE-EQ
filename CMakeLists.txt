@@ -22,6 +22,8 @@ if(CMAKE_SYSTEM_NAME STREQUAL "iOS")
     set(loveeq_formats AUv3 Standalone)
     set(loveeq_mobile_options
         TARGETED_DEVICE_FAMILY "1,2"
+        IPHONE_SCREEN_ORIENTATIONS UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight
+        IPAD_SCREEN_ORIENTATIONS UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight
         MICROPHONE_PERMISSION_ENABLED TRUE
         MICROPHONE_PERMISSION_TEXT "LOVE EQ uses audio input for standalone equalization.")
 endif()

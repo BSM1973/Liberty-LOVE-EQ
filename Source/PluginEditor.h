@@ -7,7 +7,13 @@
 #include "CurveLab.h"
 #include <vector>
 
-class LoveEQAudioProcessorEditor final : public juce::AudioProcessorEditor, private juce::Timer {
+// iOS uses the original drawing surface inside a host-resizable editor.
+#if JUCE_IOS
+using LoveEQEditorBase = juce::Component;
+#else
+using LoveEQEditorBase = juce::AudioProcessorEditor;
+#endif
+class LoveEQAudioProcessorEditor final : public LoveEQEditorBase, private juce::Timer {
 public:
     explicit LoveEQAudioProcessorEditor(LoveEQAudioProcessor&);
     ~LoveEQAudioProcessorEditor() override;
@@ -17,6 +23,11 @@ public:
     void mouseDrag(const juce::MouseEvent&) override;
     void mouseUp(const juce::MouseEvent&) override;
     void mouseDoubleClick(const juce::MouseEvent&) override;
+#if JUCE_IOS
+    void openMobilePresets() { if (browserButton.onClick) browserButton.onClick(); }
+    bool mobilePresetsVisible() const { return presetBrowser && presetBrowser->isVisible(); }
+    bool mobileEnglish() const { return english; }
+#endif
 private:
     using SliderAttachment=juce::AudioProcessorValueTreeState::SliderAttachment;
     using ComboAttachment=juce::AudioProcessorValueTreeState::ComboBoxAttachment;
@@ -201,3 +212,95 @@ private:
     float dbAtHz(float hz) const;
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(LoveEQAudioProcessorEditor)
 };
+
+#if JUCE_IOS
+// Keep the full vector-rendered editor and every parameter attachment alive.
+// A clipping parent allows deliberate zoom/pan without scrollbars. Touch
+// events are mapped through the component transform by JUCE.
+class LoveEQMobileEditor final : public juce::AudioProcessorEditor, private juce::Timer {
+public:
+    explicit LoveEQMobileEditor(LoveEQAudioProcessor& p)
+        : juce::AudioProcessorEditor(&p), canvas(p) {
+        addAndMakeVisible(window);
+        window.addAndMakeVisible(canvas);
+        for (auto* button : buttons()) {
+            addAndMakeVisible(*button);
+            button->setColour(juce::TextButton::buttonColourId, juce::Colour(0xff273542));
+            button->setColour(juce::TextButton::textColourOffId, juce::Colour(0xfff1dfbd));
+        }
+        overview.onClick = [this] { zoom = 1.f; centreX = centreY = 0.5f; layoutCanvas(); };
+        zoomIn.onClick = [this] { zoom = juce::jmin(5.f, zoom * 1.4f); layoutCanvas(); };
+        zoomOut.onClick = [this] { zoom = juce::jmax(1.f, zoom / 1.4f); layoutCanvas(); };
+        left.onClick = [this] { pan(-0.65f, 0.f); };
+        right.onClick = [this] { pan(0.65f, 0.f); };
+        up.onClick = [this] { pan(0.f, -0.65f); };
+        down.onClick = [this] { pan(0.f, 0.65f); };
+        presets.onClick = [this] {
+            zoom = 1.f; centreX = centreY = 0.5f;
+            canvas.openMobilePresets(); layoutCanvas();
+        };
+        setResizable(true, false);
+        setResizeLimits(280, 220, 2048, 2048);
+        setSize(960, 640);
+        updateLabels();
+        startTimerHz(5);
+    }
+    ~LoveEQMobileEditor() override { stopTimer(); }
+    void paint(juce::Graphics& g) override { g.fillAll(juce::Colour(0xff151a22)); }
+    void resized() override {
+        auto area = getLocalBounds().reduced(4);
+        const bool compact = area.getWidth() < 480;
+        auto toolbar = area.removeFromTop(compact ? 90 : 46);
+        auto all = buttons();
+        const int columns = compact ? 4 : 8;
+        for (int i = 0; i < 8; ++i) {
+            const int col = i % columns, row = i / columns;
+            const int x = toolbar.getX() + toolbar.getWidth() * col / columns;
+            const int nextX = toolbar.getX() + toolbar.getWidth() * (col + 1) / columns;
+            all[(size_t)i]->setBounds(x, toolbar.getY() + row * 44, juce::jmax(0, nextX-x-3), 42);
+        }
+        window.setBounds(area);
+        layoutCanvas();
+    }
+private:
+    juce::Component window;
+    LoveEQAudioProcessorEditor canvas;
+    juce::TextButton overview{"VUE"}, zoomIn{"ZOOM +"}, zoomOut{"ZOOM -"},
+        presets{"PRESETS"}, left{"<"}, right{">"}, up{"^"}, down{"v"};
+    float zoom = 1.f, centreX = 0.5f, centreY = 0.5f;
+    float scale = 1.f;
+    std::array<juce::TextButton*,8> buttons() {
+        return {&overview,&zoomIn,&zoomOut,&presets,&left,&right,&up,&down};
+    }
+    void updateLabels() {
+        overview.setButtonText(canvas.mobileEnglish() ? "FIT" : "VUE");
+        presets.setButtonText("PRESETS");
+    }
+    void timerCallback() override { updateLabels(); }
+    void pan(float x, float y) {
+        const float w = 1160.f * scale, h = 760.f * scale;
+        if (w > 0.f) centreX += x * window.getWidth() / w;
+        if (h > 0.f) centreY += y * window.getHeight() / h;
+        layoutCanvas();
+    }
+    void layoutCanvas() {
+        const float vw = (float)window.getWidth(), vh = (float)window.getHeight();
+        if (vw <= 0.f || vh <= 0.f) return;
+        scale = juce::jmin(vw / 1160.f, vh / 760.f) * zoom;
+        const float w = 1160.f * scale, h = 760.f * scale;
+        const float halfX = juce::jmin(0.5f, vw / (2.f*w));
+        const float halfY = juce::jmin(0.5f, vh / (2.f*h));
+        centreX = juce::jlimit(halfX, 1.f-halfX, centreX);
+        centreY = juce::jlimit(halfY, 1.f-halfY, centreY);
+        canvas.setTransform(juce::AffineTransform::scale(scale)
+            .translated(vw*0.5f-centreX*w, vh*0.5f-centreY*h));
+        zoomIn.setEnabled(zoom < 4.99f);
+        zoomOut.setEnabled(zoom > 1.01f);
+        left.setEnabled(centreX > halfX + 0.001f);
+        right.setEnabled(centreX < 1.f-halfX-0.001f);
+        up.setEnabled(centreY > halfY+0.001f);
+        down.setEnabled(centreY < 1.f-halfY-0.001f);
+        repaint();
+    }
+};
+#endif
