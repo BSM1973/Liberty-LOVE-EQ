@@ -4,8 +4,8 @@ Subtitle (FR): Égaliseur audio AUv3
 Subtitle (EN): AUv3 Audio Equalizer
 Category: Music
 SKU: LIBERTY-LOVE-EQ-IOS
-Version: 0.8.0 (internal beta; 1.0 commercial submission pending device qualification)
-Proposed launch price: EUR 9.99; proposed regular price EUR 14.99, pending owner confirmation and Apple price configuration.
+Version: 1.0.0 (commercial candidate; Apple review pending)
+Owner-approved French storefront price: EUR 7.99, one-time paid download. App Store Connect price configuration pending; no subscription.
 
 ## French description
 LOVE EQ est un égaliseur audio développé par Liberty Music Software pour le mixage et la création sonore. Retrouvez huit bandes paramétriques, un égaliseur graphique à seize bandes, l'égalisation dynamique, le traitement Mid/Side, les analyseurs spectraux et une bibliothèque de 100 presets d'usine. L'interface tactile conserve l'identité de LOVE EQ. Le format AUv3 est destiné aux hôtes compatibles sur iPhone et iPad. Les fonctionnalités avancées et la compatibilité de chaque hôte doivent être confirmées avant publication.
