@@ -2,6 +2,11 @@ name: LIBERTY RELEASE CENTER - LOVE EQ iOS TestFlight
 on:
   workflow_dispatch:
     inputs:
+      build_number:
+        description: "Unique increasing iOS build number (1-9999)"
+        type: string
+        required: true
+        default: "1"
       upload_testflight:
         description: "Upload signed build to App Store Connect (not App Store publication)"
         type: boolean
@@ -20,6 +25,11 @@ jobs:
       ASC_ISSUER_ID: ${{ secrets.IOS_ASC_ISSUER_ID }}
       ASC_KEY: ${{ secrets.IOS_ASC_PRIVATE_KEY }}
       UPLOAD: ${{ inputs.upload_testflight }}
+      BUILD_NUMBER: ${{ inputs.build_number }}
+      IOS_P12: ${{ secrets.IOS_DISTRIBUTION_P12_BASE64 }}
+      IOS_P12_PASSWORD: ${{ secrets.IOS_DISTRIBUTION_P12_PASSWORD }}
+      IOS_APP_PROFILE: ${{ secrets.IOS_APP_PROFILE_BASE64 }}
+      IOS_AUV3_PROFILE: ${{ secrets.IOS_AUV3_PROFILE_BASE64 }}
     steps:
       - uses: actions/checkout@v4
       - name: Validate signing configuration
@@ -30,12 +40,17 @@ jobs:
             if [[ -z "${!v}" ]]; then echo "::error::Missing secret: $v"; exit 1; fi
           done
           xcodebuild -version
-          xcrun --sdk iphoneos --show-sdk-version
+          sdk=$(xcrun --sdk iphoneos --show-sdk-version)
+          echo "iOS SDK $sdk"
+          [[ "${sdk%%.*}" -ge 26 ]] || { echo "::error::iOS SDK 26+ required; select Xcode 26 or newer"; exit 1; }
+          [[ "$BUILD_NUMBER" =~ ^[1-9][0-9]{0,3}$ ]] || { echo "::error::Invalid build number"; exit 1; }
       - name: Archive, export and optionally upload
         shell: bash
         run: bash scripts/ios_testflight.sh
       - uses: actions/upload-artifact@v4
         with:
           name: LOVE-EQ-iOS-signed-ipa
-          path: ios-distribution/*.ipa
+          path: |
+            ios-distribution/*.ipa
+            ios-distribution/build-info.txt
           if-no-files-found: error

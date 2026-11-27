@@ -21,7 +21,14 @@ set(loveeq_mobile_options "")
 if(CMAKE_SYSTEM_NAME STREQUAL "iOS")
     set(loveeq_formats AUv3 Standalone)
     set(CMAKE_XCODE_GENERATE_SCHEME ON)
+    set(LOVE_EQ_IOS_BUILD_VERSION "1" CACHE STRING "Unique iOS build number")
+    find_program(LOVE_EQ_HOST_PYTHON NAMES python3 REQUIRED NO_CMAKE_FIND_ROOT_PATH)
+    set(loveeq_ios_icon "${CMAKE_CURRENT_BINARY_DIR}/LOVE-EQ-AppIcon.png")
+    execute_process(COMMAND "${LOVE_EQ_HOST_PYTHON}" "${CMAKE_CURRENT_SOURCE_DIR}/scripts/generate_ios_icon.py" "${loveeq_ios_icon}" COMMAND_ERROR_IS_FATAL ANY)
     set(loveeq_mobile_options
+        VERSION 0.5.0
+        BUILD_VERSION "${LOVE_EQ_IOS_BUILD_VERSION}"
+        ICON_BIG "${loveeq_ios_icon}"
         TARGETED_DEVICE_FAMILY "1,2"
         IPHONE_SCREEN_ORIENTATIONS UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight
         IPAD_SCREEN_ORIENTATIONS UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight
@@ -43,6 +50,17 @@ juce_add_plugin(LoveEQ
     IS_MIDI_EFFECT FALSE
     COPY_PLUGIN_AFTER_BUILD FALSE
     VST3_CATEGORIES Fx EQ)
+
+if(CMAKE_SYSTEM_NAME STREQUAL "iOS" AND DEFINED LOVE_EQ_APP_PROFILE AND DEFINED LOVE_EQ_AUV3_PROFILE)
+    set_target_properties(LoveEQ_Standalone PROPERTIES
+        XCODE_ATTRIBUTE_CODE_SIGN_STYLE Manual
+        XCODE_ATTRIBUTE_CODE_SIGN_IDENTITY "Apple Distribution"
+        XCODE_ATTRIBUTE_PROVISIONING_PROFILE_SPECIFIER "${LOVE_EQ_APP_PROFILE}")
+    set_target_properties(LoveEQ_AUv3 PROPERTIES
+        XCODE_ATTRIBUTE_CODE_SIGN_STYLE Manual
+        XCODE_ATTRIBUTE_CODE_SIGN_IDENTITY "Apple Distribution"
+        XCODE_ATTRIBUTE_PROVISIONING_PROFILE_SPECIFIER "${LOVE_EQ_AUV3_PROFILE}")
+endif()
 
 juce_generate_juce_header(LoveEQ)
 target_sources(LoveEQ PRIVATE

@@ -7,6 +7,8 @@ on:
       - 'CMakeLists.txt'
       - 'Source/**'
       - 'tests/mobile*'
+      - 'scripts/generate_ios_icon.py'
+      - 'scripts/verify_ios_bundle.py'
       - '.github/workflows/ios.yml'
 permissions:
   contents: read
