@@ -1,0 +1,56 @@
+name: LOVE EQ - iOS AUv3 diagnostic
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'CMakeLists.txt'
+      - 'Source/**'
+      - '.github/workflows/ios.yml'
+permissions:
+  contents: read
+jobs:
+  ios-arm64:
+    runs-on: macos-15
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check toolchain
+        run: |
+          xcodebuild -version
+          xcrun --sdk iphoneos --show-sdk-version
+          cmake --version
+      - name: Configure iOS (unsigned device build)
+        run: |
+          cmake -S . -B build-ios -G Xcode \
+            -DCMAKE_SYSTEM_NAME=iOS \
+            -DCMAKE_OSX_SYSROOT=iphoneos \
+            -DCMAKE_OSX_ARCHITECTURES=arm64 \
+            -DCMAKE_OSX_DEPLOYMENT_TARGET=16.0 \
+            -DCMAKE_XCODE_ATTRIBUTE_CODE_SIGNING_ALLOWED=NO \
+            -DCMAKE_XCODE_ATTRIBUTE_CODE_SIGNING_REQUIRED=NO
+      - name: Build AUv3 and containing standalone app
+        run: cmake --build build-ios --config Release --target LoveEQ_AUv3 LoveEQ_Standalone --parallel 3
+      - name: Verify containing app and embedded AUv3
+        shell: bash
+        run: |
+          set -euo pipefail
+          app=$(find build-ios/LoveEQ_artefacts/Release -type d -name '*.app' -print -quit)
+          test -n "$app"
+          extension=$(find "$app/PlugIns" -type d -name '*.appex' -print -quit)
+          test -n "$extension"
+          for bundle in "$app" "$extension"; do
+            plist="$bundle/Info.plist"
+            executable=$(/usr/libexec/PlistBuddy -c 'Print CFBundleExecutable' "$plist")
+            /usr/libexec/PlistBuddy -c 'Print CFBundleIdentifier' "$plist"
+            lipo -verify_arch arm64 "$bundle/$executable"
+          done
+          /usr/libexec/PlistBuddy -c 'Print NSExtension:NSExtensionPointIdentifier' "$extension/Info.plist"
+          mkdir -p artifacts
+          ditto -c -k --keepParent "$app" artifacts/LOVE-EQ-iOS-arm64-unsigned.zip
+          printf '%s\n' 'Unsigned diagnostic only. Not installable on an ordinary iOS device or eligible for App Store submission until signed and validated.' > artifacts/README.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: LOVE-EQ-iOS-arm64-unsigned
+          path: artifacts/
+          if-no-files-found: error
