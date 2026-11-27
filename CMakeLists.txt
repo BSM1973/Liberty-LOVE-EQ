@@ -45,6 +45,7 @@ juce_add_plugin(LoveEQ
 
 juce_generate_juce_header(LoveEQ)
 target_sources(LoveEQ PRIVATE
+    Source/MobilePrecision.h
     Source/EqCore.h
     Source/CurveLab.h
     Source/HarmonicDNA.h
@@ -137,4 +138,20 @@ target_link_libraries(loveeq_juce_utf8_test PRIVATE
     juce::juce_recommended_config_flags)
 add_test(NAME loveeq_juce_utf8 COMMAND loveeq_juce_utf8_test)
 
+add_executable(loveeq_mobile_precision_test tests/mobile_precision_test.cpp)
+target_compile_features(loveeq_mobile_precision_test PRIVATE cxx_std_17)
+target_include_directories(loveeq_mobile_precision_test PRIVATE Source)
+add_test(NAME loveeq_mobile_precision COMMAND loveeq_mobile_precision_test)
+
+# Opt-in processor integration diagnostic, independent of plug-in wrapper.
+option(LOVE_EQ_PROCESSOR_QC "Build processor integration diagnostics" OFF)
+if(LOVE_EQ_PROCESSOR_QC)
+    add_executable(loveeq_processor_qc tests/mobile_processor_qc.cpp)
+    target_include_directories(loveeq_processor_qc PRIVATE Source
+        ${CMAKE_CURRENT_BINARY_DIR}/LoveEQ_artefacts/JuceLibraryCode)
+    target_compile_definitions(loveeq_processor_qc PRIVATE JUCE_WEB_BROWSER=0 JUCE_USE_CURL=0)
+    target_link_libraries(loveeq_processor_qc PRIVATE LoveEQ juce::juce_audio_utils juce::juce_dsp juce::juce_recommended_config_flags)
+    add_test(NAME loveeq_processor_qc COMMAND loveeq_processor_qc)
+    set_tests_properties(loveeq_processor_qc PROPERTIES TIMEOUT 180)
+endif()
 endif() # desktop tests; iOS execution requires a device or simulator

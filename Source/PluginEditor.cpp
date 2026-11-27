@@ -506,6 +506,12 @@ void LoveEQAudioProcessorEditor::beginMatchCapture(int mode) {
     else return;
     matchCaptureMode=mode;
     matchFramesRemaining=48; // two seconds at the 24 Hz UI rate.
+#if JUCE_IOS
+    if(mobileRefreshHz!=loveeq::mobile::activeHz) {
+        mobileRefreshHz=loveeq::mobile::activeHz;
+        startTimerHz(mobileRefreshHz);
+    }
+#endif
     matchStatus=mode==1?
        tr(u8"Lecture de référence en cours...","Recording reference..."):
        tr(u8"Lecture de la source en cours...","Recording source...");
@@ -2106,10 +2112,17 @@ void LoveEQAudioProcessorEditor::mouseDoubleClick(const juce::MouseEvent& e) {
 }
 void LoveEQAudioProcessorEditor::updateFFT(bool before,std::array<float,1025>& out){
     const auto end=processor.scopeIndex.load(std::memory_order_acquire);
+#if JUCE_IOS
+    const auto& window=loveeq::mobile::hannWindow<2048>();
+#endif
     for(int j=0;j<2048;++j) {
         const auto index=(end-(unsigned int)2048+(unsigned int)j)%LoveEQAudioProcessor::scopeSize;
         const float x=before?processor.scopeBefore[index].load():processor.scopeAfter[index].load();
+#if JUCE_IOS
+        fftScratch[(size_t)j]=x*window[(size_t)j];
+#else
         fftScratch[(size_t)j]=x*(0.5f-0.5f*std::cos(2.f*juce::MathConstants<float>::pi*j/2047.f));
+#endif
     }
     std::fill(fftScratch.begin()+2048,fftScratch.end(),0.f);
     fft.performFrequencyOnlyForwardTransform(fftScratch.data());
@@ -2130,10 +2143,17 @@ void LoveEQAudioProcessorEditor::updateHarmonicDNA() {
     }
     const unsigned int end=processor.scopeIndex.load(std::memory_order_acquire);
     constexpr unsigned int fftSize=8192;
+#if JUCE_IOS
+    const auto& window=loveeq::mobile::hannWindow<fftSize>();
+#endif
     for(unsigned int j=0;j<fftSize;++j) {
         const unsigned int index=(end-fftSize+j)%LoveEQAudioProcessor::scopeSize;
         const float value=processor.scopeBefore[(size_t)index].load(std::memory_order_relaxed);
+ #if JUCE_IOS
+        const float hann=window[(size_t)j];
+#else
         const float hann=0.5f-0.5f*std::cos(2.f*juce::MathConstants<float>::pi*(float)j/8191.f);
+#endif
         dnaScratch[(size_t)j]=value*hann;
     }
     std::fill(dnaScratch.begin()+fftSize,dnaScratch.end(),0.f);
@@ -2185,11 +2205,29 @@ void LoveEQAudioProcessorEditor::applyDnaSuggestion() {
     repaint();
 }
 void LoveEQAudioProcessorEditor::timerCallback(){
+#if JUCE_IOS
+    const auto scope=processor.scopeIndex.load(std::memory_order_acquire);
+    const bool fresh=!mobileHaveScope || scope!=mobileLastScope;
+    const bool capturing=matchCaptureMode!=0;
+    const bool showing=isShowing();
+    const bool browsing=presetBrowser && presetBrowser->isVisible();
+    const int desired=loveeq::mobile::refreshHz(showing,browsing,capturing,freezeSpectrum,fresh);
+    if(desired!=mobileRefreshHz) {mobileRefreshHz=desired;startTimerHz(desired);}
+    // Do not discard unseen audio: on reopening, refresh immediately.
+    if(!capturing && (!showing || browsing))return;
+    if(fresh || capturing) {mobileLastScope=scope;mobileHaveScope=true;}
+#endif
     updateTimeLensButtonLabel();
     if(matchCaptureMode!=0)runMatchCaptureFrame();
     for(auto& tile:bandButtons) if(tile.isVisible())tile.repaint();
+#if JUCE_IOS
+    if(!freezeSpectrum && (fresh || capturing)) {
+        // Match already captures the pre-EQ FFT on this tick.
+        if(showPre && !capturing)updateFFT(true,preSpectrum);
+#else
     if(!freezeSpectrum) {
         if(showPre)updateFFT(true,preSpectrum);
+#endif
         if(showPost)updateFFT(false,postSpectrum);
         if(dnaEnabled && (++dnaFrames%8u)==0u)updateHarmonicDNA();
         if(holdSpectrum) {

@@ -5,6 +5,9 @@
 #include "Utf8Text.h"
 #include "HarmonicDNA.h"
 #include "CurveLab.h"
+#if JUCE_IOS
+#include "MobilePrecision.h"
+#endif
 #include <vector>
 
 // iOS uses the original drawing surface inside a host-resizable editor.
@@ -200,6 +203,11 @@ private:
     juce::dsp::FFT fft {11};
     std::array<float,4096> fftScratch{};
     std::array<float,1025> preSpectrum{}, postSpectrum{};
+#if JUCE_IOS
+    unsigned int mobileLastScope=0;
+    int mobileRefreshHz=loveeq::mobile::activeHz;
+    bool mobileHaveScope=false;
+#endif
     void timerCallback() override;
     void attachBand(int);
     void refillPresets();
@@ -273,8 +281,8 @@ private:
         return {&overview,&zoomIn,&zoomOut,&presets,&left,&right,&up,&down};
     }
     void updateLabels() {
-        overview.setButtonText(canvas.mobileEnglish() ? "FIT" : "VUE");
-        presets.setButtonText("PRESETS");
+        const juce::String label=canvas.mobileEnglish() ? "FIT" : "VUE";
+        if(overview.getButtonText()!=label)overview.setButtonText(label);
     }
     void timerCallback() override { updateLabels(); }
     void pan(float x, float y) {

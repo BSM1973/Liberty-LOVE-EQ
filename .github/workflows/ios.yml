@@ -6,6 +6,7 @@ on:
     paths:
       - 'CMakeLists.txt'
       - 'Source/**'
+      - 'tests/mobile*'
       - '.github/workflows/ios.yml'
 permissions:
   contents: read
@@ -54,3 +55,28 @@ jobs:
           name: LOVE-EQ-iOS-arm64-unsigned
           path: artifacts/
           if-no-files-found: error
+
+  native-qc:
+    runs-on: macos-15
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify analyzer policy without JUCE
+        run: |
+          mkdir -p reports
+          c++ -std=c++17 -O2 -I Source tests/mobile_precision_test.cpp -o /tmp/loveeq-mobile-test
+          /tmp/loveeq-mobile-test | tee reports/mobile-policy.txt
+      - name: Configure native processor reference
+        run: cmake -S . -B build-qc -G Xcode -DCMAKE_OSX_ARCHITECTURES=arm64 -DLOVE_EQ_PROCESSOR_QC=ON
+      - name: Build native processor diagnostic
+        run: cmake --build build-qc --config Release --target loveeq_processor_qc --parallel 3
+      - name: Run processor diagnostic
+        shell: bash
+        run: |
+          set -o pipefail
+          build-qc/Release/loveeq_processor_qc | tee reports/native-processor.txt
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: LOVE-EQ-native-reference-QC
+          path: reports/
