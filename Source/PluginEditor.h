@@ -226,15 +226,20 @@ private:
 };
 
 #if JUCE_IOS
+#include "MobileTouchPanel.h"
 // Keep the full vector-rendered editor and every parameter attachment alive.
 // A clipping parent allows deliberate zoom/pan without scrollbars. Touch
 // events are mapped through the component transform by JUCE.
 class LoveEQMobileEditor final : public juce::AudioProcessorEditor, private juce::Timer {
 public:
     explicit LoveEQMobileEditor(LoveEQAudioProcessor& p)
-        : juce::AudioProcessorEditor(&p), canvas(p) {
+        : juce::AudioProcessorEditor(&p), canvas(p), touch(p) {
         addAndMakeVisible(window);
         window.addAndMakeVisible(canvas);
+        addChildComponent(touch);
+        addAndMakeVisible(viewMode);
+        viewMode.setColour(juce::TextButton::buttonColourId,juce::Colour(0xff84683d));
+        viewMode.onClick=[this]{manualView=true;useTouch=!useTouch;resized();};
         for (auto* button : buttons()) {
             addAndMakeVisible(*button);
             button->setColour(juce::TextButton::buttonColourId, juce::Colour(0xff273542));
@@ -249,7 +254,8 @@ public:
         down.onClick = [this] { pan(0.f, 0.65f); };
         presets.onClick = [this] {
             zoom = 1.f; centreX = centreY = 0.5f;
-            canvas.openMobilePresets(); layoutCanvas();
+            manualView=true;useTouch=false;resized();
+            if(!canvas.mobilePresetsVisible())canvas.openMobilePresets(); layoutCanvas();
         };
         setResizable(true, false);
         setResizeLimits(280, 220, 2048, 2048);
@@ -261,8 +267,24 @@ public:
     void paint(juce::Graphics& g) override { g.fillAll(juce::Colour(0xff151a22)); }
     void resized() override {
         auto area = getLocalBounds().reduced(4);
+        const bool supported=loveeq::mobile::supportsTouch(area.getWidth(),area.getHeight()-46);
+        if(!supported)useTouch=false;
+        else if(!manualView)useTouch=loveeq::mobile::preferTouch(area.getWidth(),area.getHeight());
+        viewMode.setEnabled(supported);
+        window.setVisible(!useTouch);touch.setVisible(useTouch);
+        viewMode.setButtonText(useTouch?"STUDIO":"TOUCH");
+        auto allButtons=buttons();
+        for(auto* b:allButtons)b->setVisible(!useTouch);
+        presets.setVisible(true);
+        if(useTouch){
+            auto bar=area.removeFromTop(44);
+            viewMode.setBounds(bar.removeFromLeft(bar.getWidth()/2).reduced(1));
+            presets.setBounds(bar.reduced(1));
+            touch.setBounds(area);return;
+        }
         const bool compact = area.getWidth() < 480;
         auto toolbar = area.removeFromTop(compact ? 90 : 46);
+        viewMode.setBounds(toolbar.removeFromLeft(juce::jmin(84,toolbar.getWidth()/4)).removeFromTop(42).reduced(1));
         auto all = buttons();
         const int columns = compact ? 4 : 8;
         for (int i = 0; i < 8; ++i) {
@@ -277,6 +299,9 @@ public:
 private:
     juce::Component window;
     LoveEQAudioProcessorEditor canvas;
+    LoveEQTouchPanel touch;
+    juce::TextButton viewMode{"TOUCH"};
+    bool manualView=false,useTouch=false;
     juce::TextButton overview{"VUE"}, zoomIn{"ZOOM +"}, zoomOut{"ZOOM -"},
         presets{"PRESETS"}, left{"<"}, right{">"}, up{"^"}, down{"v"};
     float zoom = 1.f, centreX = 0.5f, centreY = 0.5f;
