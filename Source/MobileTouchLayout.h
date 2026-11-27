@@ -12,6 +12,11 @@ inline constexpr bool preferTouch(int w,int h) noexcept {
 inline constexpr bool sideBySide(int w,int h) noexcept {
     return w>=600 && h<500;
 }
+struct ZoomDomain { float start, span; };
+inline ZoomDomain pinchDomain(float anchor,float centre,float initialSpan,float initialDistance,float currentDistance) noexcept {
+    const float span=std::clamp(initialSpan*std::max(8.f,initialDistance)/std::max(8.f,currentDistance),.2f,1.f);
+    return {std::clamp(anchor-span*std::clamp(centre,0.f,1.f),0.f,1.f-span),span};
+}
 struct Rect {int x,y,w,h;};
 inline Rect cell(Rect r,int columns,int index,int gap=3) noexcept {
     const int a=r.w*index/columns,b=r.w*(index+1)/columns;

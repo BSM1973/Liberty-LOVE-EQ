@@ -146,8 +146,8 @@ class LoveEQTouchPanel final : public juce::Component, private juce::Timer {
                 if(contacts.size()>=2){
                     auto a=contacts.begin(),b=std::next(a);
                     const float distance=juce::jmax(8.f,a->second.getDistanceFrom(b->second));
-                    span=juce::jlimit(.2f,1.f,initialSpan*initialDistance/distance);
-                    domainStart=juce::jlimit(0.f,1.f-span,initialAnchor-span*positionFraction((a->second.x+b->second.x)*.5f));
+                    const auto domain=loveeq::mobile::pinchDomain(initialAnchor,positionFraction((a->second.x+b->second.x)*.5f),initialSpan,initialDistance,distance);
+                    span=domain.span;domainStart=domain.start;
                     repaint();
                 }
                 return;
