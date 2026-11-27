@@ -14,13 +14,26 @@ include(FetchContent)
 FetchContent_Declare(JUCE GIT_REPOSITORY https://github.com/juce-framework/JUCE.git GIT_TAG 8.0.10 GIT_SHALLOW TRUE)
 FetchContent_MakeAvailable(JUCE)
 
+# Keep the existing desktop formats unchanged. iOS uses an app containing
+# the AUv3 extension, built with the Xcode generator.
+set(loveeq_formats AU VST3 Standalone)
+set(loveeq_mobile_options "")
+if(CMAKE_SYSTEM_NAME STREQUAL "iOS")
+    set(loveeq_formats AUv3 Standalone)
+    set(loveeq_mobile_options
+        TARGETED_DEVICE_FAMILY "1,2"
+        MICROPHONE_PERMISSION_ENABLED TRUE
+        MICROPHONE_PERMISSION_TEXT "LOVE EQ uses audio input for standalone equalization.")
+endif()
+
 juce_add_plugin(LoveEQ
     COMPANY_NAME "Liberty Music Software"
     BUNDLE_ID com.libertymusicsoftware.loveeq
     PLUGIN_MANUFACTURER_CODE LbMs
     PLUGIN_CODE LoEQ
     PRODUCT_NAME "LOVE EQ"
-    FORMATS AU VST3 Standalone
+    FORMATS ${loveeq_formats}
+    ${loveeq_mobile_options}
     IS_SYNTH FALSE
     NEEDS_MIDI_INPUT FALSE
     NEEDS_MIDI_OUTPUT FALSE
@@ -57,6 +70,7 @@ target_link_libraries(LoveEQ PRIVATE
     juce::juce_recommended_lto_flags
     juce::juce_recommended_warning_flags)
 
+if(NOT CMAKE_SYSTEM_NAME STREQUAL "iOS")
 enable_testing()
 add_executable(loveeq_core_test tests/eqcore_test.cpp)
 target_compile_features(loveeq_core_test PRIVATE cxx_std_17)
@@ -120,3 +134,5 @@ target_link_libraries(loveeq_juce_utf8_test PRIVATE
     juce::juce_core
     juce::juce_recommended_config_flags)
 add_test(NAME loveeq_juce_utf8 COMMAND loveeq_juce_utf8_test)
+
+endif() # desktop tests; iOS execution requires a device or simulator
