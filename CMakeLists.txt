@@ -20,6 +20,7 @@ set(loveeq_formats AU VST3 Standalone)
 set(loveeq_mobile_options "")
 if(CMAKE_SYSTEM_NAME STREQUAL "iOS")
     set(loveeq_formats AUv3 Standalone)
+    set(CMAKE_XCODE_GENERATE_SCHEME ON)
     set(loveeq_mobile_options
         TARGETED_DEVICE_FAMILY "1,2"
         IPHONE_SCREEN_ORIENTATIONS UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight

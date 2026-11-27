@@ -374,7 +374,11 @@ LoveEQAudioProcessorEditor::LoveEQAudioProcessorEditor(LoveEQAudioProcessor& p)
     setSize(1160,760);
     startTimerHz(24);
 }
-LoveEQAudioProcessorEditor::~LoveEQAudioProcessorEditor(){stopTimer();if(intentOriginalValid)restoreIntentBaseline();if(matchBaselineValid)restoreMatchBaseline();setLookAndFeel(nullptr);}
+LoveEQAudioProcessorEditor::~LoveEQAudioProcessorEditor(){stopTimer();
+#if JUCE_IOS
+    endMobileGraphGesture();
+#endif
+if(intentOriginalValid)restoreIntentBaseline();if(matchBaselineValid)restoreMatchBaseline();setLookAndFeel(nullptr);}
 void LoveEQAudioProcessorEditor::initializeMatch() {
     for(juce::TextButton* b:std::array<juce::TextButton*,7>{
         &matchModeButton,&matchReferenceButton,&matchSourceButton,
@@ -497,6 +501,12 @@ void LoveEQAudioProcessorEditor::restoreMatchBaseline() {
 }
 void LoveEQAudioProcessorEditor::beginMatchCapture(int mode) {
     if(!matchMode || matchCaptureMode!=0)return;
+#if JUCE_IOS
+    if(!processor.mobileAudioReady.load(std::memory_order_acquire)) {
+        matchStatus=tr(u8"Audio indisponible : relancez la lecture","Audio unavailable: restart playback");
+        repaint();return;
+    }
+#endif
     if(matchBaselineValid)restoreMatchBaseline();
     matchCurve={};
     if(mode==1) {
@@ -1966,7 +1976,24 @@ void LoveEQAudioProcessorEditor::resized() {
     output.setTextBoxStyle(juce::Slider::TextBoxRight,false,57,24);
     if(presetBrowser) presetBrowser->setBounds(95,129,w-190,565);
 }
+#if JUCE_IOS
+void LoveEQAudioProcessorEditor::endMobileGraphGesture() {
+    for(auto*& param:mobileGestureParams) {
+        if(param)param->endChangeGesture();
+        param=nullptr;
+    }
+}
+void LoveEQAudioProcessorEditor::beginMobileGraphGesture(const juce::String& first,const juce::String& second) {
+    endMobileGraphGesture();
+    mobileGestureParams[0]=processor.parameters.getParameter(first);
+    if(second.isNotEmpty())mobileGestureParams[1]=processor.parameters.getParameter(second);
+    for(auto* param:mobileGestureParams)if(param)param->beginChangeGesture();
+}
+#endif
 void LoveEQAudioProcessorEditor::mouseDown(const juce::MouseEvent& e) {
+#if JUCE_IOS
+    endMobileGraphGesture();
+#endif
     draggingBand=-1;
     draggingGraphic=-1;
     if(matchMode || intentMode || !graph.contains(e.getPosition())) return;
@@ -1986,6 +2013,9 @@ void LoveEQAudioProcessorEditor::mouseDown(const juce::MouseEvent& e) {
             const float distance=juce::Point<float>(x,y).getDistanceFrom(e.position);
             if(distance<best){best=distance;draggingGraphic=i;}
         }
+#if JUCE_IOS
+        if(draggingGraphic>=0)beginMobileGraphGesture(LoveEQAudioProcessor::graphicId(draggingGraphic));
+#endif
         return;
     }
     for(int i=0;i<8;++i) {
@@ -1995,7 +2025,13 @@ void LoveEQAudioProcessorEditor::mouseDown(const juce::MouseEvent& e) {
         const float d=juce::Point<float>(xForHz(read(id("hz"))),yForDb(read(id("gain")))).getDistanceFrom(e.position);
         if(d<best){best=d;draggingBand=i;}
     }
-    if(draggingBand>=0)attachBand(draggingBand);
+    if(draggingBand>=0) {
+        attachBand(draggingBand);
+#if JUCE_IOS
+        beginMobileGraphGesture(LoveEQAudioProcessor::bandId(draggingBand,"hz"),
+                                LoveEQAudioProcessor::bandId(draggingBand,"gain"));
+#endif
+    }
 }
 void LoveEQAudioProcessorEditor::mouseDrag(const juce::MouseEvent& e) {
     if(sketchActive) {addSketchPoint(e.position);repaint();return;}
@@ -2074,6 +2110,10 @@ void LoveEQAudioProcessorEditor::grabSpectrumPeak() {
     repaint();
 }
 void LoveEQAudioProcessorEditor::mouseUp(const juce::MouseEvent& e) {
+#if JUCE_IOS
+    endMobileGraphGesture();
+    draggingBand=draggingGraphic=-1;
+#endif
     if(!sketchActive)return;
     addSketchPoint(e.position);
     sketchActive=false;
@@ -2206,15 +2246,33 @@ void LoveEQAudioProcessorEditor::applyDnaSuggestion() {
 }
 void LoveEQAudioProcessorEditor::timerCallback(){
 #if JUCE_IOS
+    const bool ready=processor.mobileAudioReady.load(std::memory_order_acquire);
+    const auto epoch=processor.mobileAudioEpoch.load(std::memory_order_acquire);
+    if(epoch!=mobileSeenEpoch || ready!=mobileWasReady) {
+        mobileSeenEpoch=epoch;
+        mobileWasReady=ready;
+        mobileHaveScope=false;
+        preSpectrum.fill(-96.f);postSpectrum.fill(-96.f);
+        heldPre.fill(-96.f);heldPost.fill(-96.f);
+        dnaResult={};dnaTargetArmed=false;
+        updateDnaControls();updateRelationshipControls();
+        if(matchCaptureMode!=0) {
+            matchCaptureMode=0;matchFramesRemaining=0;
+            matchReference.reset();matchSource.reset();matchCurve={};
+            matchStatus=tr(u8"Audio interrompu : recommencez la capture","Audio interrupted: restart capture");
+            updateMatchVisibility();
+        }
+        repaint();
+    }
     const auto scope=processor.scopeIndex.load(std::memory_order_acquire);
-    const bool fresh=!mobileHaveScope || scope!=mobileLastScope;
+    const bool fresh=ready && scope!=0 && (!mobileHaveScope || scope!=mobileLastScope);
     const bool capturing=matchCaptureMode!=0;
     const bool showing=isShowing();
     const bool browsing=presetBrowser && presetBrowser->isVisible();
     const int desired=loveeq::mobile::refreshHz(showing,browsing,capturing,freezeSpectrum,fresh);
     if(desired!=mobileRefreshHz) {mobileRefreshHz=desired;startTimerHz(desired);}
     // Do not discard unseen audio: on reopening, refresh immediately.
-    if(!capturing && (!showing || browsing))return;
+    if(!ready || (!capturing && (!showing || browsing)))return;
     if(fresh || capturing) {mobileLastScope=scope;mobileHaveScope=true;}
 #endif
     updateTimeLensButtonLabel();

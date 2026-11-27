@@ -57,6 +57,10 @@ public:
     void setUiLanguage(const juce::String& language);
     std::array<std::atomic<float>, scopeSize> scopeBefore {}, scopeAfter {};
     std::atomic<unsigned int> scopeIndex { 0 };
+#if JUCE_IOS
+    std::atomic<unsigned int> mobileAudioEpoch { 0 };
+    std::atomic<bool> mobileAudioReady { false };
+#endif
     void loadFactoryPreset(size_t index);
     void resetToFlat();
     static juce::String bandId(int band, const juce::String& suffix);

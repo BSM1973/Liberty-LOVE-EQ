@@ -204,7 +204,11 @@ private:
     std::array<float,4096> fftScratch{};
     std::array<float,1025> preSpectrum{}, postSpectrum{};
 #if JUCE_IOS
-    unsigned int mobileLastScope=0;
+    unsigned int mobileLastScope=0, mobileSeenEpoch=0;
+    bool mobileWasReady=false;
+    void endMobileGraphGesture();
+    void beginMobileGraphGesture(const juce::String&,const juce::String& = {});
+    std::array<juce::RangedAudioParameter*,2> mobileGestureParams{};
     int mobileRefreshHz=loveeq::mobile::activeHz;
     bool mobileHaveScope=false;
 #endif

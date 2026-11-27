@@ -46,7 +46,7 @@ jobs:
             /usr/libexec/PlistBuddy -c 'Print CFBundleIdentifier' "$plist"
             lipo -verify_arch arm64 "$bundle/$executable"
           done
-          /usr/libexec/PlistBuddy -c 'Print NSExtension:NSExtensionPointIdentifier' "$extension/Info.plist"
+          python3 scripts/verify_ios_bundle.py "$app" "$extension"
           mkdir -p artifacts
           ditto -c -k --keepParent "$app" artifacts/LOVE-EQ-iOS-arm64-unsigned.zip
           printf '%s\n' 'Unsigned diagnostic only. Not installable on an ordinary iOS device or eligible for App Store submission until signed and validated.' > artifacts/README.txt
@@ -65,6 +65,7 @@ jobs:
         run: |
           mkdir -p reports
           c++ -std=c++17 -O2 -I Source tests/mobile_precision_test.cpp -o /tmp/loveeq-mobile-test
+          set -o pipefail
           /tmp/loveeq-mobile-test | tee reports/mobile-policy.txt
       - name: Configure native processor reference
         run: cmake -S . -B build-qc -G Xcode -DCMAKE_OSX_ARCHITECTURES=arm64 -DLOVE_EQ_PROCESSOR_QC=ON

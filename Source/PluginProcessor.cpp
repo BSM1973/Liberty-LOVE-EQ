@@ -227,6 +227,10 @@ float LoveEQAudioProcessor::BandRuntime::filtered(int channel,float input) noexc
 }
 
 void LoveEQAudioProcessor::prepareToPlay(double sampleRate,int) {
+#if JUCE_IOS
+    mobileAudioReady.store(false,std::memory_order_release);
+    loveeq::relationship::registry().publish(relationSlot,0,0,{});
+#endif
     rate=sampleRate;
     refreshSettings();
     for (int i=0;i<bandCount;++i) runtime[(size_t)i].reset(rate,settings[(size_t)i]);
@@ -276,8 +280,20 @@ void LoveEQAudioProcessor::prepareToPlay(double sampleRate,int) {
     timeLensPhase.store(0,std::memory_order_relaxed);
     timeLensEnvelope.store(0.f,std::memory_order_relaxed);
     setLatencySamples(0);
+#if JUCE_IOS
+    mobileAudioEpoch.fetch_add(1,std::memory_order_release);
+    mobileAudioReady.store(true,std::memory_order_release);
+#endif
 }
-void LoveEQAudioProcessor::releaseResources() {}
+void LoveEQAudioProcessor::releaseResources() {
+#if JUCE_IOS
+    mobileAudioReady.store(false,std::memory_order_release);
+    mobileAudioEpoch.fetch_add(1,std::memory_order_release);
+    loveeq::relationship::registry().publish(relationSlot,0,0,{});
+    peakIn.store(0.f,std::memory_order_relaxed);
+    peakOut.store(0.f,std::memory_order_relaxed);
+#endif
+}
 
 void LoveEQAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,juce::MidiBuffer&) {
     juce::ScopedNoDenormals noDenormals;

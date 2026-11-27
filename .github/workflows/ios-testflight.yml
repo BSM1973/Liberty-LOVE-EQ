@@ -1,0 +1,41 @@
+name: LIBERTY RELEASE CENTER - LOVE EQ iOS TestFlight
+on:
+  workflow_dispatch:
+    inputs:
+      upload_testflight:
+        description: "Upload signed build to App Store Connect (not App Store publication)"
+        type: boolean
+        default: false
+permissions:
+  contents: read
+jobs:
+  archive:
+    if: github.ref == 'refs/heads/main'
+    runs-on: macos-15
+    environment: ios-distribution
+    timeout-minutes: 60
+    env:
+      TEAM_ID: ${{ secrets.IOS_TEAM_ID }}
+      ASC_KEY_ID: ${{ secrets.IOS_ASC_KEY_ID }}
+      ASC_ISSUER_ID: ${{ secrets.IOS_ASC_ISSUER_ID }}
+      ASC_KEY: ${{ secrets.IOS_ASC_PRIVATE_KEY }}
+      UPLOAD: ${{ inputs.upload_testflight }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate signing configuration
+        shell: bash
+        run: |
+          set -euo pipefail
+          for v in TEAM_ID ASC_KEY_ID ASC_ISSUER_ID ASC_KEY; do
+            if [[ -z "${!v}" ]]; then echo "::error::Missing secret: $v"; exit 1; fi
+          done
+          xcodebuild -version
+          xcrun --sdk iphoneos --show-sdk-version
+      - name: Archive, export and optionally upload
+        shell: bash
+        run: bash scripts/ios_testflight.sh
+      - uses: actions/upload-artifact@v4
+        with:
+          name: LOVE-EQ-iOS-signed-ipa
+          path: ios-distribution/*.ipa
+          if-no-files-found: error

@@ -58,5 +58,40 @@ int main(){
         std::cout<<"sr="<<sr<<" block="<<n<<" instances="<<count<<" cpu_ms="<<elapsed*1000.
                  <<" energy="<<checksum<<" state=PASS\n";
     }
+    // Native host-lifecycle simulation, not a claim of real iOS host validation.
+    LoveEQAudioProcessor original, restored;
+    original.loadFactoryPreset(42);
+    set(original,"band1_gain",5.25f);
+    set(original,"band1_channel",4.f);
+    juce::MemoryBlock saved;
+    original.getStateInformation(saved);
+    restored.setStateInformation(saved.getData(),(int)saved.getSize());
+    auto& a=original.getParameters();auto& b=restored.getParameters();
+    if(a.size()!=b.size())return 8;
+    for(int i=0;i<a.size();++i)if(std::abs(a[i]->getValue()-b[i]->getValue())>1.e-6f)return 9;
+    for(double sr:{48000.,44100.,96000.,48000.}){
+        constexpr int n=128;
+        original.releaseResources();restored.releaseResources();
+        original.setRateAndBufferSizeDetails(sr,n);restored.setRateAndBufferSizeDetails(sr,n);
+        original.prepareToPlay(sr,n);restored.prepareToPlay(sr,n);
+        juce::AudioBuffer<float> x(2,n),y(2,n);
+        juce::MidiBuffer midi;
+        double maxError=0.;
+        for(int block=0;block<256;++block){
+            for(int j=0;j<n;++j){
+                float v=(float)(0.15*std::sin(6.283185307179586*440*(block*n+j)/sr));
+                x.setSample(0,j,v);x.setSample(1,j,-v);
+            }
+            y.makeCopyOf(x);
+            original.processBlock(x,midi);restored.processBlock(y,midi);
+            for(int ch=0;ch<2;++ch)for(int j=0;j<n;++j){
+                if(!std::isfinite(x.getSample(ch,j))||!std::isfinite(y.getSample(ch,j)))return 10;
+                maxError=std::max(maxError,(double)std::abs(x.getSample(ch,j)-y.getSample(ch,j)));
+            }
+        }
+        if(maxError>1.e-6)return 11;
+        std::cout<<"Lifecycle sample_rate="<<sr<<" restored_max_error="<<maxError<<" PASS\n";
+    }
+    original.releaseResources();restored.releaseResources();
     return 0;
 }
