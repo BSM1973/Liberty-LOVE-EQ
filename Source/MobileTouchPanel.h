@@ -73,7 +73,7 @@ class LoveEQTouchPanel final : public juce::Component, private juce::Timer {
                 g.setColour(juce::Colour(0xff699eaa));g.strokePath(spectrum,juce::PathStrokeType(1.25f));
             }
             const double sr=juce::jmax(8000.,owner.processor.getSampleRate());
-            struct Filter{loveeq::Biquad b;int count;};
+            struct Filter{loveeq::Coefficients b;int count;};
             std::vector<Filter> filters;filters.reserve(16);
             const bool graphic=owner.graphic();
             for(int i=0;i<(graphic?16:8);++i){
@@ -176,7 +176,7 @@ public:
             controls=a.removeFromRight(a.getWidth()*49/100);a.removeFromRight(5);
             graph.setBounds(a);
         }else {
-            const int reserve=getWidth()<400?226:183;
+            const int reserve=getWidth()<402?232:189;
             graph.setBounds(a.removeFromTop(juce::jmax(48,a.getHeight()-reserve)));
             a.removeFromTop(3);controls=a;
         }
@@ -199,10 +199,10 @@ public:
             auto right=valueArea.removeFromRight(tw);
             enabled.setBounds(right.removeFromTop(right.getHeight()/2).reduced(1));
             solo.setBounds(right.reduced(1));
-        }else{enabled.setBounds({});solo.setBounds({});}
+        }else{enabled.setBounds(juce::Rectangle<int>{});solo.setBounds(juce::Rectangle<int>{});}
         for(int i=0;i<4;++i){
             if(i<count){auto c=loveeq::mobile::cell({valueArea.getX(),valueArea.getY(),valueArea.getWidth(),valueArea.getHeight()},count,i);tiles[(size_t)i].setBounds(c.x,c.y,c.w,c.h);}
-            else tiles[(size_t)i].setBounds({});
+            else tiles[(size_t)i].setBounds(juce::Rectangle<int>{});
         }
     }
 private:
@@ -223,6 +223,7 @@ private:
     void toggleBand(const char* suffix){auto id=LoveEQAudioProcessor::bandId(band,suffix);change(id,read(id)>.5f?0.f:1.f);updateLabels();}
     static void place(juce::Rectangle<int> r,std::initializer_list<juce::TextButton*> bs){int i=0;for(auto* b:bs){auto c=loveeq::mobile::cell({r.getX(),r.getY(),r.getWidth(),r.getHeight()},(int)bs.size(),i++);b->setBounds(c.x,c.y,c.w,c.h);}}
     void bindPage(){
+        graph.finish();
         for(auto& t:tiles)t.bind(nullptr,{});
         const bool g=graphic();lastGraphic=g;
         if(g&&page==1)page=0;

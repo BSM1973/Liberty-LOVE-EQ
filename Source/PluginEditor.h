@@ -30,6 +30,10 @@ public:
     void openMobilePresets() { if (browserButton.onClick) browserButton.onClick(); }
     bool mobilePresetsVisible() const { return presetBrowser && presetBrowser->isVisible(); }
     bool mobileEnglish() const { return english; }
+    void syncMobileMode() {
+        const bool graphic=processor.parameters.getRawParameterValue("eq_mode")->load()>.5f;
+        if(graphic!=(activeTab==2))selectTab(graphic?2:0);
+    }
 #endif
 private:
     using SliderAttachment=juce::AudioProcessorValueTreeState::SliderAttachment;
@@ -271,6 +275,7 @@ public:
         if(!supported)useTouch=false;
         else if(!manualView)useTouch=loveeq::mobile::preferTouch(area.getWidth(),area.getHeight());
         viewMode.setEnabled(supported);
+        if(!useTouch && touch.isVisible())canvas.syncMobileMode();
         window.setVisible(!useTouch);touch.setVisible(useTouch);
         viewMode.setButtonText(useTouch?"STUDIO":"TOUCH");
         auto allButtons=buttons();
