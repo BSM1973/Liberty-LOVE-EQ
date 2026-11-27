@@ -2,6 +2,7 @@
 #if JUCE_IOS
 #include "MobileTouchLayout.h"
 #include <cmath>
+#include <map>
 
 // UI-only. All writes use the existing host-notified RangedAudioParameter.
 class LoveEQTouchPanel final : public juce::Component, private juce::Timer {
@@ -58,14 +59,14 @@ class LoveEQTouchPanel final : public juce::Component, private juce::Timer {
             auto r=plot();g.setColour(juce::Colour(0xff0d151e));g.fillRoundedRectangle(getLocalBounds().toFloat(),6.f);
             if(r.getWidth()<10||r.getHeight()<10)return;
             g.setColour(juce::Colour(0xff293b49));
-            for(float hz:{20.f,100.f,1000.f,10000.f,20000.f})g.drawVerticalLine((int)x(hz),r.getY(),r.getBottom());
+            for(float hz:{20.f,100.f,1000.f,10000.f,20000.f})if(x(hz)>=r.getX()&&x(hz)<=r.getRight())g.drawVerticalLine((int)x(hz),r.getY(),r.getBottom());
             for(float db:{-24.f,-12.f,0.f,12.f,24.f})g.drawHorizontalLine((int)y(db),r.getX(),r.getRight());
             g.saveState();g.reduceClipRegion(r.toNearestInt());
             if(owner.audioFresh){
                 juce::Path spectrum;
                 const double sr=owner.processor.getSampleRate();
                 if(sr>0.)for(int i=0;i<=100;++i){
-                    float f=20.f*std::pow(1000.f,(float)i/100.f);
+                    float f=frequencyAt((float)i/100.f);
                     int bin=juce::jlimit(1,1024,(int)std::round(f*2048./sr));
                     float py=r.getBottom()-r.getHeight()*(juce::jlimit(-96.f,0.f,owner.spectrum[(size_t)bin])+96.f)/96.f;
                     if(i==0)spectrum.startNewSubPath(x(f),py);else spectrum.lineTo(x(f),py);
@@ -90,7 +91,7 @@ class LoveEQTouchPanel final : public juce::Component, private juce::Timer {
             }
             juce::Path response;
             for(int i=0;i<=120;++i){
-                float hz=20.f*std::pow(1000.f,(float)i/120.f),db=0.f;
+                float hz=frequencyAt((float)i/120.f),db=0.f;
                 for(auto& f:filters)db+=(float)loveeq::magnitudeDb(f.b,sr,hz)*f.count;
                 if(i==0)response.startNewSubPath(x(hz),y(db));else response.lineTo(x(hz),y(db));
             }
@@ -104,10 +105,21 @@ class LoveEQTouchPanel final : public juce::Component, private juce::Timer {
             g.restoreState();
             g.setColour(juce::Colour(0xffa5b7c5));g.setFont(juce::Font(juce::FontOptions(10.f)));
             for(float hz:{20.f,100.f,1000.f,10000.f,20000.f})
-                g.drawFittedText(hz>=1000?juce::String((int)(hz/1000))+"k":juce::String((int)hz),juce::Rectangle<int>((int)x(hz)-14,getHeight()-15,28,14),juce::Justification::centred,1);
+                if(x(hz)>=r.getX()&&x(hz)<=r.getRight())g.drawFittedText(hz>=1000?juce::String((int)(hz/1000))+"k":juce::String((int)hz),juce::Rectangle<int>((int)x(hz)-14,getHeight()-15,28,14),juce::Justification::centred,1);
         }
         void mouseDown(const juce::MouseEvent& e) override {
-            finish();if(!plot().expanded(5.f).contains(e.position))return;
+            if(!plot().expanded(5.f).contains(e.position))return;
+            contacts[e.source.getIndex()]=e.position;
+            if(contacts.size()>=2){
+                finish();pinching=true;
+                auto a=contacts.begin(),b=std::next(a);
+                initialDistance=juce::jmax(8.f,a->second.getDistanceFrom(b->second));
+                initialSpan=span;
+                initialAnchor=domainStart+span*positionFraction((a->second.x+b->second.x)*.5f);
+                return;
+            }
+            if(pinching)return;
+            finish();
             const bool graphic=owner.graphic();int best=-1;float distance=23.f;
             // Give the current selection priority when nodes overlap.
             int selected=graphic?owner.graphicBand:owner.band;
@@ -127,17 +139,35 @@ class LoveEQTouchPanel final : public juce::Component, private juce::Timer {
         }
         void mouseDrag(const juce::MouseEvent& e) override {
             auto r=plot();if(r.isEmpty())return;
+            auto it=contacts.find(e.source.getIndex());if(it==contacts.end())return;
+            it->second=e.position;
+            if(pinching){
+                if(contacts.size()>=2){
+                    auto a=contacts.begin(),b=std::next(a);
+                    const float distance=juce::jmax(8.f,a->second.getDistanceFrom(b->second));
+                    span=juce::jlimit(.2f,1.f,initialSpan*initialDistance/distance);
+                    domainStart=juce::jlimit(0.f,1.f-span,initialAnchor-span*positionFraction((a->second.x+b->second.x)*.5f));
+                    repaint();
+                }
+                return;
+            }
             float factor=owner.fine.getToggleState()?0.2f:1.f;
-            if(hzParam){auto hz=startHz*std::pow(1000.f,e.getDistanceFromDragStartX()*factor/r.getWidth());hzParam->setValueNotifyingHost(hzParam->convertTo0to1(juce::jlimit(20.f,20000.f,hz)));}
+            if(hzParam){auto hz=startHz*std::pow(1000.f,e.getDistanceFromDragStartX()*factor*span/r.getWidth());hzParam->setValueNotifyingHost(hzParam->convertTo0to1(juce::jlimit(20.f,20000.f,hz)));}
             if(gainParam){float db=startGain-e.getDistanceFromDragStartY()*48.f*factor/r.getHeight();auto range=gainParam->getNormalisableRange();gainParam->setValueNotifyingHost(gainParam->convertTo0to1(juce::jlimit(range.start,range.end,db)));}
             repaint();
         }
-        void mouseUp(const juce::MouseEvent&) override {finish();}
+        void mouseUp(const juce::MouseEvent& e) override {contacts.erase(e.source.getIndex());finish();if(contacts.empty())pinching=false;}
+        void resetZoom(){domainStart=0.f;span=1.f;repaint();}
+        void cancelContacts(){finish();contacts.clear();pinching=false;}
         void finish(){if(hzParam)hzParam->endChangeGesture();if(gainParam)gainParam->endChangeGesture();hzParam=gainParam=nullptr;}
     private:
         LoveEQTouchPanel& owner;Param* hzParam=nullptr;Param* gainParam=nullptr;float startHz=1000,startGain=0;
         juce::Rectangle<float> plot() const {return getLocalBounds().toFloat().reduced(14.f,5.f).withTrimmedBottom(13.f);}
-        float x(float hz) const {auto r=plot();return r.getX()+r.getWidth()*std::log(juce::jlimit(20.f,20000.f,hz)/20.f)/std::log(1000.f);}
+        std::map<int,juce::Point<float>> contacts;
+        bool pinching=false;float domainStart=0.f,span=1.f,initialDistance=8.f,initialSpan=1.f,initialAnchor=.5f;
+        float positionFraction(float px) const {auto r=plot();return juce::jlimit(0.f,1.f,(px-r.getX())/juce::jmax(1.f,r.getWidth()));}
+        float frequencyAt(float t) const {return 20.f*std::pow(1000.f,domainStart+span*t);}
+        float x(float hz) const {auto r=plot();return r.getX()+r.getWidth()*(std::log(juce::jlimit(20.f,20000.f,hz)/20.f)/std::log(1000.f)-domainStart)/span;}
         float y(float db) const {auto r=plot();return r.getCentreY()-juce::jlimit(-24.f,24.f,db)*r.getHeight()/48.f;}
         juce::Point<float> node(int i,bool graphic) const {
             return graphic?juce::Point<float>{x((float)LoveEQAudioProcessor::graphicHz[(size_t)i]),y(owner.read(LoveEQAudioProcessor::graphicId(i)))}:
@@ -146,7 +176,8 @@ class LoveEQTouchPanel final : public juce::Component, private juce::Timer {
     };
 public:
     explicit LoveEQTouchPanel(LoveEQAudioProcessor& p):processor(p),graph(*this){
-        for(auto* b:{&eq,&dyn,&mix,&fine,&mode,&enabled,&solo,&prev,&next,&bypass})style(*b);
+        for(auto* b:{&eq,&dyn,&mix,&fine,&more,&mode,&enabled,&solo,&prev,&next,&bypass})style(*b);
+        more.onClick=[this]{openTools();};
         fine.setClickingTogglesState(true);
         eq.onClick=[this]{page=0;bindPage();};
         dyn.onClick=[this]{page=1;bindPage();};
@@ -164,12 +195,13 @@ public:
     }
     ~LoveEQTouchPanel() override {stopTimer();finishGestures();}
     void visibilityChanged() override {if(!isShowing())finishGestures();else bindPage();}
-    void finishGestures(){graph.finish();for(auto& t:tiles)t.finish();}
+    std::function<void(int,int)> onAdvanced;
+    void finishGestures(){graph.cancelContacts();for(auto& t:tiles)t.finish();}
     void paint(juce::Graphics& g) override {g.fillAll(juce::Colour(0xff151a22));}
     void resized() override {
         auto a=getLocalBounds().reduced(3);
         auto row=a.removeFromTop(44);
-        place(row,{&eq,&dyn,&mix,&fine});
+        place(row,{&eq,&dyn,&mix,&fine,&more});
         a.removeFromTop(3);
         juce::Rectangle<int> controls;
         if(loveeq::mobile::sideBySide(getWidth(),getHeight())){
@@ -210,10 +242,39 @@ private:
     Plot graph;
     std::array<Tile,4> tiles;
     std::array<juce::TextButton,8> bands;
-    juce::TextButton eq{"EQ"},dyn{"DYN"},mix{"MIX"},fine{"FIN"},mode{"PARAM"},enabled{"ACTIF"},solo{"SOLO"},prev{"<"},next{">"},bypass{"BYPASS"};
+    juce::TextButton eq{"EQ"},dyn{"DYN"},mix{"MIX"},fine{"FIN"},more{"PLUS"},mode{"PARAM"},enabled{"ACTIF"},solo{"SOLO"},prev{"<"},next{">"},bypass{"BYPASS"};
     int page=0,band=0,graphicBand=0;bool lastGraphic=false;
     unsigned int scope=0,epoch=0;bool audioFresh=false;
     juce::dsp::FFT fft{11};std::array<float,4096> scratch{};std::array<float,1025> spectrum{};
+    int refresh=18;
+    void openTools(){
+        finishGestures();
+        juce::PopupMenu menu;
+        menu.addItem(1,processor.getUiLanguage()=="en"?"Reset graph zoom":"Zoom : vue globale");
+        if(!graphic()){
+            juce::PopupMenu types,channels,slopes;
+            const juce::StringArray t{"Bell","Low Shelf","High Shelf","High Pass","Low Pass","Notch","Band Pass"};
+            const juce::StringArray c{"Stereo","Left","Right","Mid","Side"};
+            const juce::StringArray sl{"6 dB/oct","12 dB/oct","18 dB/oct","24 dB/oct","36 dB/oct","48 dB/oct"};
+            for(int i=0;i<t.size();++i)types.addItem(10+i,t[i],true,(int)readBand(band,"type")==i);
+            for(int i=0;i<c.size();++i)channels.addItem(20+i,c[i],true,(int)readBand(band,"channel")==i);
+            for(int i=0;i<sl.size();++i)slopes.addItem(30+i,sl[i],true,(int)readBand(band,"slope")==i);
+            menu.addSubMenu("Type",types);menu.addSubMenu("Canal / Channel",channels);menu.addSubMenu("Pente / Slope",slopes);
+            menu.addItem(41,"Harmonic DNA");menu.addItem(42,"Relationship EQ");
+        }
+        menu.addItem(43,"Time Lens");menu.addItem(44,"LOVE INTENT");menu.addItem(45,"EQ MATCH");
+        const int selected=band;
+        auto safe=juce::Component::SafePointer<LoveEQTouchPanel>(this);
+        menu.showMenuAsync(juce::PopupMenu::Options().withTargetComponent(&more).withMinimumWidth(230).withStandardItemHeight(44),[safe,selected](int id){
+            if(!safe||!id)return;
+            if(id==1)safe->graph.resetZoom();
+            else if(id>=10&&id<17)safe->change(LoveEQAudioProcessor::bandId(selected,"type"),(float)(id-10));
+            else if(id>=20&&id<25)safe->change(LoveEQAudioProcessor::bandId(selected,"channel"),(float)(id-20));
+            else if(id>=30&&id<36)safe->change(LoveEQAudioProcessor::bandId(selected,"slope"),(float)(id-30));
+            else if(id>=41&&id<=45&&safe->onAdvanced)safe->onAdvanced(id-40,selected);
+            safe->repaint();
+        });
+    }
     void style(juce::TextButton& b){addAndMakeVisible(b);b.setColour(juce::TextButton::buttonColourId,juce::Colour(0xff273542));b.setColour(juce::TextButton::buttonOnColourId,juce::Colour(0xff84683d));b.setColour(juce::TextButton::textColourOffId,juce::Colour(0xfff1dfbd));}
     Param* parameter(const juce::String& id){return processor.parameters.getParameter(id);}
     float read(const juce::String& id) const {auto* p=processor.parameters.getRawParameterValue(id);return p?p->load():0.f;}
@@ -247,7 +308,9 @@ private:
         for(auto& t:tiles)t.fine=fine.getToggleState();
     }
     void timerCallback() override {
-        if(!isShowing())return;
+        if(!isShowing()){if(refresh!=2){refresh=2;startTimerHz(refresh);}return;}
+        const auto wanted=processor.mobileAudioReady.load(std::memory_order_acquire)?18:8;
+        if(refresh!=wanted){refresh=wanted;startTimerHz(refresh);}
         if(graphic()!=lastGraphic){finishGestures();bindPage();}
         updateLabels();
         auto e=processor.mobileAudioEpoch.load(std::memory_order_acquire);

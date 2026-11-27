@@ -30,6 +30,8 @@ public:
     void openMobilePresets() { if (browserButton.onClick) browserButton.onClick(); }
     bool mobilePresetsVisible() const { return presetBrowser && presetBrowser->isVisible(); }
     bool mobileEnglish() const { return english; }
+    friend class LoveEQMobileAdvanced;
+    bool mobileAuxVisible=false;
     void syncMobileMode() {
         const bool graphic=processor.parameters.getRawParameterValue("eq_mode")->load()>.5f;
         if(graphic!=(activeTab==2))selectTab(graphic?2:0);
@@ -231,19 +233,26 @@ private:
 
 #if JUCE_IOS
 #include "MobileTouchPanel.h"
+#include "MobileAdvancedPanel.h"
 // Keep the full vector-rendered editor and every parameter attachment alive.
 // A clipping parent allows deliberate zoom/pan without scrollbars. Touch
 // events are mapped through the component transform by JUCE.
 class LoveEQMobileEditor final : public juce::AudioProcessorEditor, private juce::Timer {
 public:
     explicit LoveEQMobileEditor(LoveEQAudioProcessor& p)
-        : juce::AudioProcessorEditor(&p), canvas(p), touch(p) {
+        : juce::AudioProcessorEditor(&p), canvas(p), touch(p), compactPresets(p), advanced(canvas) {
         addAndMakeVisible(window);
         window.addAndMakeVisible(canvas);
         addChildComponent(touch);
+        addChildComponent(compactPresets);addChildComponent(advanced);
+        compactPresets.setMobileCompact(true);
+        compactPresets.onClose=[this]{resized();};
+        compactPresets.onLoad=[this](int){canvas.syncMobileMode();resized();};
+        advanced.onClose=[this]{advanced.setVisible(false);resized();};
+        touch.onAdvanced=[this](int mode,int band){canvas.syncMobileMode();advanced.open(mode,band);resized();};
         addAndMakeVisible(viewMode);
         viewMode.setColour(juce::TextButton::buttonColourId,juce::Colour(0xff84683d));
-        viewMode.onClick=[this]{viewPreference=useTouch?1:2;resized();};
+        viewMode.onClick=[this]{advanced.close();compactPresets.setVisible(false);viewPreference=useTouch?1:2;resized();};
         for (auto* button : buttons()) {
             addAndMakeVisible(*button);
             button->setColour(juce::TextButton::buttonColourId, juce::Colour(0xff273542));
@@ -257,6 +266,7 @@ public:
         up.onClick = [this] { pan(0.f, -0.65f); };
         down.onClick = [this] { pan(0.f, 0.65f); };
         presets.onClick = [this] {
+            if(useTouch){advanced.close();compactPresets.translate(canvas.mobileEnglish());compactPresets.open();resized();return;}
             zoom = 1.f; centreX = centreY = 0.5f;
             viewPreference=1;resized();
             if(!canvas.mobilePresetsVisible())canvas.openMobilePresets(); layoutCanvas();
@@ -275,7 +285,8 @@ public:
         useTouch=supported && (viewPreference==2 || (viewPreference==0 && loveeq::mobile::preferTouch(area.getWidth(),area.getHeight())));
         viewMode.setEnabled(supported);
         if(!useTouch && touch.isVisible())canvas.syncMobileMode();
-        window.setVisible(!useTouch);touch.setVisible(useTouch);
+        if(!useTouch){advanced.close();compactPresets.setVisible(false);}
+        window.setVisible(!useTouch);touch.setVisible(useTouch&&!advanced.isVisible()&&!compactPresets.isVisible());
         viewMode.setButtonText(useTouch?"STUDIO":"TOUCH");
         auto allButtons=buttons();
         for(auto* b:allButtons)b->setVisible(!useTouch);
@@ -284,7 +295,12 @@ public:
             auto bar=area.removeFromTop(44);
             viewMode.setBounds(bar.removeFromLeft(bar.getWidth()/2).reduced(1));
             presets.setBounds(bar.reduced(1));
-            touch.setBounds(area);return;
+            touch.setBounds(area);
+            compactPresets.setBounds(area);
+            advanced.setBounds(area);
+            if(advanced.isVisible())advanced.toFront(false);
+            if(compactPresets.isVisible())compactPresets.toFront(false);
+            return;
         }
         const bool compact = area.getWidth() < 480;
         auto toolbar = area.removeFromTop(compact ? 90 : 46);
@@ -304,6 +320,8 @@ private:
     juce::Component window;
     LoveEQAudioProcessorEditor canvas;
     LoveEQTouchPanel touch;
+    LoveEQPresetBrowser compactPresets;
+    LoveEQMobileAdvanced advanced;
     juce::TextButton viewMode{"TOUCH"};
     int viewPreference=0; // auto, studio, touch
     bool useTouch=false;

@@ -2267,7 +2267,7 @@ void LoveEQAudioProcessorEditor::timerCallback(){
     const auto scope=processor.scopeIndex.load(std::memory_order_acquire);
     const bool fresh=ready && scope!=0 && (!mobileHaveScope || scope!=mobileLastScope);
     const bool capturing=matchCaptureMode!=0;
-    const bool showing=isShowing();
+    const bool showing=isShowing() || mobileAuxVisible;
     const bool browsing=presetBrowser && presetBrowser->isVisible();
     const int desired=loveeq::mobile::refreshHz(showing,browsing,capturing,freezeSpectrum,fresh);
     if(desired!=mobileRefreshHz) {mobileRefreshHz=desired;startTimerHz(desired);}

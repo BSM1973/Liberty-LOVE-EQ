@@ -56,6 +56,9 @@ public:
     std::function<void(int)> onLoad;
     std::function<void()> onClose;
 
+#if JUCE_IOS
+    void setMobileCompact(bool compact) {mobileCompact=compact;resized();repaint();results.repaint();}
+#endif
     void open() {
         reloadUser();
         setVisible(true);
@@ -84,6 +87,13 @@ public:
     }
     void paint(juce::Graphics& g) override {
         g.fillAll(juce::Colour(0xff151d26));
+#if JUCE_IOS
+        if(mobileCompact){
+            g.setColour(juce::Colour(0xffe2c693));g.setFont(juce::Font(juce::FontOptions(14.f)));
+            g.drawFittedText(status,getLocalBounds().removeFromBottom(30).reduced(5,1),juce::Justification::centredLeft,2);
+            return;
+        }
+#endif
         auto area=getLocalBounds().toFloat().reduced(0.8f);
         g.setColour(juce::Colour(0xffc5a56d));
         g.drawRoundedRectangle(area,10.f,1.3f);
@@ -113,6 +123,23 @@ public:
         g.drawText(status,24,getHeight()-38,getWidth()-48,21,juce::Justification::centredLeft);
     }
     void resized() override {
+#if JUCE_IOS
+        if(mobileCompact){
+            auto a=getLocalBounds().reduced(4);
+            auto row=[&](std::initializer_list<juce::Component*> cs){
+                auto r=a.removeFromTop(44);const int count=(int)cs.size();int i=0;
+                for(auto* c:cs){const int x=r.getWidth()*i/count,n=r.getWidth()*(++i)/count;c->setBounds(r.getX()+x,r.getY(),n-x-2,r.getHeight());}
+                a.removeFromTop(3);
+            };
+            row({&factoryTab,&userTab,&closeButton});row({&search,&favoriteOnly});
+            row({&category,&tag});
+            a.removeFromBottom(30);auto bottom=a.removeFromBottom(44);
+            loadButton.setBounds(bottom.removeFromLeft(bottom.getWidth()/2).reduced(1));
+            favoriteButton.setBounds(bottom.reduced(1));results.setBounds(a.reduced(1));
+            for(auto* c:std::initializer_list<juce::Component*>{&presetName,&presetCategory,&presetTags,&saveButton,&deleteButton,&refreshButton})c->setBounds(juce::Rectangle<int>{});
+            return;
+        }
+#endif
         const int w=getWidth(),h=getHeight();
         closeButton.setBounds(w-106,20,81,30);
         factoryTab.setBounds(24,83,94,32);
@@ -136,6 +163,9 @@ public:
 private:
     LoveEQAudioProcessor& processor;
     bool en=false, userTabActive=false;
+#if JUCE_IOS
+    bool mobileCompact=false;
+#endif
     std::vector<loveeq::UserPreset> userPresets;
     std::vector<int> matches;
     juce::StringArray defaultCategories, activeCategories;
@@ -316,6 +346,17 @@ private:
         else if(row%2==1)g.fillAll(juce::Colour(0xff1d2933));
         g.setColour(selected?juce::Colour(0xfff0dec1):juce::Colour(0xffd6e0e5));
         g.setFont(juce::Font(juce::FontOptions("Arial",12.2f,juce::Font::bold)));
+#if JUCE_IOS
+        if(mobileCompact){
+            g.setFont(juce::Font(juce::FontOptions(15.f,juce::Font::bold)));
+            g.drawFittedText(rowName(index),8,1,width-36,height/2,juce::Justification::centredLeft,1);
+            g.setFont(juce::Font(juce::FontOptions(12.f)));
+            g.setColour(juce::Colour(0xff9bafbd));
+            g.drawFittedText(categoryLabel(rowCategory(index)),8,height/2,width-36,height/2,juce::Justification::centredLeft,1);
+            if(rowFavorite(index)){g.setColour(juce::Colour(0xffe5c184));g.drawText(juce::String::fromUTF8(u8"★"),width-30,0,26,height,juce::Justification::centred);}
+            return;
+        }
+#endif
         g.drawText(userTabActive?"USR":juce::String(index+1).paddedLeft('0',3),
                    12,0,43,height,juce::Justification::centredLeft);
         g.drawText(rowName(index),58,0,width/2-55,height,juce::Justification::centredLeft);

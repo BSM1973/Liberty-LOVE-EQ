@@ -1,0 +1,2 @@
+# LOVE EQ 0.7 mobile ergonomics
+Compact iOS preset browser: search, factory/user load, categories, tags and favourites. Save/delete remain in Studio. Two-contact plot pinch adjusts logarithmic frequency view only. PLUS menu provides filter type, channel, slope, zoom reset and advanced pages. Advanced pages mirror existing guarded analysis actions; full manual editing remains in Studio. No audio engine changes. Actual multi-touch, hosts, iPad and long stability require real hardware.

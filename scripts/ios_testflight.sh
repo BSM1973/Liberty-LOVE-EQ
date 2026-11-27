@@ -77,7 +77,7 @@ def read(p):
     with open(p,"rb") as f: return plistlib.load(f)
 bundles=[read(pathlib.Path(p)/"Info.plist") for p in (app,ext)]
 for b in bundles:
-    if b.get("CFBundleVersion")!=build or b.get("CFBundleShortVersionString")!="0.6.0":
+    if b.get("CFBundleVersion")!=build or b.get("CFBundleShortVersionString")!="0.7.0":
         raise SystemExit("Unexpected archive version/build number")
 d=dict(method="app-store-connect",destination="export",signingStyle=style.lower(),teamID=team,manageAppVersionAndBuildNumber=False)
 if style=="Manual":
