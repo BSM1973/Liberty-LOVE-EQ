@@ -1,0 +1,99 @@
+name: LOVE EQ - App Store screenshots
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/ios-appstore-screenshots.yml']
+permissions:
+  contents: read
+jobs:
+  capture:
+    runs-on: macos-15
+    timeout-minutes: 35
+    strategy:
+      fail-fast: false
+      matrix:
+        device: [iphone, ipad]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: 5f0365416aa7e3f03fc2b54bcde25c1bd368641f
+          persist-credentials: false
+      - name: Select Xcode and matching simulator
+        env:
+          DEVICE_FAMILY: ${{ matrix.device }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import glob,os,plistlib,re,json,subprocess
+          candidates=[]
+          family=os.environ['DEVICE_FAMILY']
+          for app in glob.glob('/Applications/Xcode*.app'):
+              try:
+                  v=plistlib.load(open(app+'/Contents/Info.plist','rb'))['CFBundleShortVersionString']
+                  if not re.fullmatch(r'\d+(\.\d+)*',v) or re.search(r'beta|preview|\bRC\b',app,re.I): continue
+                  version=tuple(map(int,v.split('.')))
+                  if version[0]<26: continue
+                  developer=app+'/Contents/Developer'
+                  env=dict(os.environ,DEVELOPER_DIR=developer)
+                  data=json.loads(subprocess.check_output(['xcrun','simctl','list','devices','available','-j'],env=env,text=True,stderr=subprocess.DEVNULL))
+                  for runtime,devices in data['devices'].items():
+                      if 'iOS' not in runtime: continue
+                      for d in devices:
+                          name=d['name']
+                          if family=='iphone':
+                              preferred=['iPhone 17 Pro','iPhone 16 Pro','iPhone 15 Pro','iPhone 16','iPhone 15']
+                              if name not in preferred: continue
+                              rank=len(preferred)-preferred.index(name)
+                          else:
+                              if not ('iPad Pro' in name and ('13-inch' in name or '12.9-inch' in name)): continue
+                              rank=2 if '13-inch' in name else 1
+                          candidates.append((version,rank,runtime,developer,d['udid'],name))
+              except (OSError,KeyError,ValueError,subprocess.CalledProcessError): continue
+          if not candidates: raise SystemExit('No compatible available simulator found')
+          version,rank,runtime,developer,udid,name=max(candidates)
+          subprocess.run(['sudo','xcode-select','--switch',developer],check=True)
+          with open(os.environ['GITHUB_ENV'],'a') as f:
+              f.write('DEVELOPER_DIR='+developer+'\nSIM_UDID='+udid+'\nSIM_NAME='+name+'\n')
+          print('Simulator:',name,runtime,'Xcode:',version)
+          PY
+      - name: Boot simulator and compile genuine LOVE EQ 1.0
+        shell: bash
+        run: |
+          set -euo pipefail
+          xcrun simctl boot "$SIM_UDID" 2>/dev/null || true
+          xcrun simctl bootstatus "$SIM_UDID" -b
+          cmake -S . -B build-sim -G Xcode \
+            -DCMAKE_SYSTEM_NAME=iOS -DCMAKE_OSX_SYSROOT=iphonesimulator \
+            -DCMAKE_OSX_ARCHITECTURES="$(uname -m)" -DCMAKE_OSX_DEPLOYMENT_TARGET=16.0 \
+            -DLOVE_EQ_IOS_BUILD_VERSION=4 \
+            -DCMAKE_XCODE_ATTRIBUTE_CODE_SIGNING_ALLOWED=NO \
+            -DCMAKE_XCODE_ATTRIBUTE_CODE_SIGNING_REQUIRED=NO
+          cmake --build build-sim --config Release --target LoveEQ_Standalone --parallel 3
+      - name: Install and capture actual interface
+        env:
+          DEVICE_FAMILY: ${{ matrix.device }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          app=$(find build-sim -type d -name '*.app' -path '*Standalone*' -print -quit)
+          test -n "$app"
+          bundle=$(/usr/libexec/PlistBuddy -c 'Print CFBundleIdentifier' "$app/Info.plist")
+          version=$(/usr/libexec/PlistBuddy -c 'Print CFBundleShortVersionString' "$app/Info.plist")
+          test "$bundle" = com.libertymusicsoftware.loveeq
+          test "$version" = 1.0.0
+          xcrun simctl install "$SIM_UDID" "$app"
+          xcrun simctl privacy "$SIM_UDID" grant microphone "$bundle" || true
+          xcrun simctl status_bar "$SIM_UDID" override --time '9:41' --dataNetwork wifi --wifiMode active --wifiBars 3 --batteryState unplugged --batteryLevel 100 || true
+          xcrun simctl launch "$SIM_UDID" "$bundle"
+          sleep 12
+          mkdir -p screenshots
+          xcrun simctl io "$SIM_UDID" screenshot "screenshots/LOVE-EQ-1.0-$DEVICE_FAMILY.png"
+          sips -g pixelWidth -g pixelHeight "screenshots/LOVE-EQ-1.0-$DEVICE_FAMILY.png"
+          printf 'Actual simulator screenshot, not a mockup.\nDevice: %s\nSource: %s\nVersion: %s\nCheck visually for system dialogs, clipping and App Store dimensions before upload.\n' "$SIM_NAME" "$(git rev-parse HEAD)" "$version" > screenshots/README.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: LOVE-EQ-AppStore-${{ matrix.device }}
+          path: screenshots/
+          if-no-files-found: error
